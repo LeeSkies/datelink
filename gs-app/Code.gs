@@ -21,19 +21,44 @@ var CONFIG = {
   // Uploads happen within seconds of the row timestamp; window guards against
   // equal filenames from different submissions:
   MATCH_WINDOW_MS: 5 * 60 * 1000,
-  IMAGE_MAX: 2 // how many photos to show per card
+  IMAGE_MAX: 2, // how many photos to show per card
+  // The ONLY accounts that may open the app. Fill with your email + your partner's.
+  ALLOWED_EMAILS: ['PUT-YOUR-EMAIL@gmail.com', 'PUT-PARTNER-EMAIL@gmail.com']
 };
 
 function setup() {
   var folder = getUploadFolder_();
   if (!folder) throw new Error('Upload folder not found. Open CONFIG and set UPLOAD_FOLDER_ID.');
-  folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  checkEmails_();
+  // private folder, visible ONLY to the two allowed accounts:
+  folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+  CONFIG.ALLOWED_EMAILS.forEach(function (em) { folder.addViewer(em); });
   var n = folder.getFiles().hasNext() ? countFiles_(folder) : 0;
   var out = '✓ Upload folder: ' + folder.getName() + ' (' + n + ' files)\n' +
-    '✓ Folder is now "anyone with the link can view" — images will render in the app.\n' +
-    'Now: Deploy → New deployment → Web app → Execute as: Me → Access: Anyone.';
+    '✓ Folder shared ONLY with: ' + CONFIG.ALLOWED_EMAILS.join(', ') + '\n' +
+    'Now: Deploy → New deployment → Web app → Execute as: Me → Access: Anyone with Google account.';
   Logger.log(out);
   return out;
+}
+
+/* the app answers only to the two accounts in ALLOWED_EMAILS */
+function checkEmails_() {
+  CONFIG.ALLOWED_EMAILS.forEach(function (em) {
+    if (!em || em.indexOf('PUT-') === 0) throw new Error('Fill CONFIG.ALLOWED_EMAILS with your two emails first.');
+  });
+}
+
+function allowed_() {
+  checkEmails_();
+  var user = Session.getActiveUser().getEmail();
+  return user && CONFIG.ALLOWED_EMAILS.indexOf(user) !== -1;
+}
+
+function denyPage_() {
+  return HtmlService.createHtmlOutput(
+    '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"></head><body style="font-family:Arial;text-align:center;padding-top:60px;color:#14324f">' +
+    '<h2>אין גישה</h2><p>העמוד פתוח רק לחשבונות מורשים.</p></body></html>')
+    .setTitle('אין גישה');
 }
 
 function countFiles_(folder) {
@@ -272,6 +297,7 @@ function loadData_() {
 
 function doGet(e) {
   var p = e && e.parameter || {};
+  if (!allowed_()) return denyPage_();
   if (p.json === '1') {
     var data = loadData_();
     return ContentService.createTextOutput(JSON.stringify(data))
