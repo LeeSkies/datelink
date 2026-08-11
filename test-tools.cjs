@@ -245,6 +245,23 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('fresh load starts at 1', await evalJs(`document.getElementById('counter').textContent`) === '1 / 3');
 
   console.log('STEP: search & filter');
+  // unit: phone normalization (keys only — display stays as typed)
+  check('norm strips dashes/spaces', await evalJs(`Tools.normPhone('050-333 4166')`) === '0503334166');
+  check('norm +972 prefix', await evalJs(`Tools.normPhone('+972-50-333-4166')`) === '0503334166');
+  check('norm bare 972 prefix', await evalJs(`Tools.normPhone('972503334166')`) === '0503334166');
+  check('norm 00 prefix', await evalJs(`Tools.normPhone('00972503334166')`) === '0503334166');
+  check('norm leaves plain number', await evalJs(`Tools.normPhone('0503334166')`) === '0503334166');
+  check('norm empty', await evalJs(`Tools.normPhone('')`) === '');
+  // formatted variants of the same number collapse into one key
+  const fmtCsv = [
+    'שם + שם משפחה:,גיל:,מה אני מחפש+ טווח גילאים:,מספר פלאפון לברורים ויצירת קשר:,מספר פלאפון אישי שלך: (לא יפורסם ),צירוף תמונה עדכנית:,הגעתי דרך:,שם מלא:,מספר פלאפון:,חותמת זמן',
+    'אבי,25,בחורה רצינית,050-1,050-2,,קבוצה,מיכל,050-9,2026-01-01 10:00:00',
+    'בועז,27,בחורה טובה,0501,050-4,,אתר,מיכל,+972509,2026-01-02 10:00:00',
+    'גיל,28,מחפש שידוך,050-5,050-6,,קבוצה,מיכל,0509,2026-01-03 10:00:00'
+  ].join('\n');
+  check('formatted ref variants = one referee', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards).length`) === 1);
+  check('first display phone kept', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards)[0].phone`) === '050-9');
+  check('formatted card phone deduped', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards)[0].count`) === 2);
   // unit: referee stats + dedup by personal number
   check('sample refs extracted', await evalJs(`JSON.stringify(Tools.parseAll(Tools.SAMPLE_CSV).cards[0].ref)`) === '{"name":"אבי ישראלי","phone":"050-3333333"}');
   check('filter 1+ -> 3 names', await evalJs(`Tools.filterReferees(Tools.parseAll(Tools.SAMPLE_CSV).cards, 1).join(',')`) === 'אבי ישראלי,יצחק כהן,שמעון לוי');
@@ -265,6 +282,18 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await evalJs(`document.getElementById('f-min').value = '2'; document.getElementById('b-filter').click();`);
   await sleepMs(200);
   check('filter 2+ shows only מיכל', await evalJs(`document.getElementById('ref-list').textContent`) === 'מיכל');
+  // range: max filter (optional upper bound)
+  check('max=1 keeps only 1-card refs', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 1, 1).length`) === 1);
+  check('range 1..1 on sample keeps all', await evalJs(`Tools.filterReferees(Tools.parseAll(Tools.SAMPLE_CSV).cards, 1, 1).length`) === 3);
+  check('max empty = no limit', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 1, '').filter(n => n === 'מיכל').length`) === 2);
+  check('exact 2 cards (2..2)', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 2, 2).join()`) === 'מיכל');
+  check('impossible range empty', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 3, 1).length`) === 0);
+  await evalJs(`document.getElementById('f-max').value = '1'; document.getElementById('b-filter').click();`);
+  await sleepMs(200);
+  check('max=1 shows warning', await evalJs(`document.getElementById('ref-out').textContent.includes('אין מגישים')`));
+  await evalJs(`document.getElementById('f-max').value = ''; document.getElementById('b-filter').click();`);
+  await sleepMs(200);
+  check('clearing max restores list', await evalJs(`document.getElementById('ref-list').textContent`) === 'מיכל');
   check('copy list button visible', await evalJs(`!document.getElementById('b-copy-refs').hidden`));
   await evalJs(`document.getElementById('b-copy-refs').click()`);
   await sleepMs(200);

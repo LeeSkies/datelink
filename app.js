@@ -247,6 +247,15 @@
   function exportAllText(cards) { return cards.map(cardWithImages).join('\n\n\n'); }
 
   /* ===== referee stats ===== */
+  /* normalize a phone for KEYING only (display stays as typed): strip all
+     formatting, convert a leading 972/+972/00 to 0 */
+  function normPhone(v) {
+    var d = String(v == null ? '' : v).replace(/\D+/g, '');
+    if (d.indexOf('00') === 0) d = d.slice(2);
+    if (d.indexOf('972') === 0 && d.length > 3) d = '0' + d.slice(3);
+    return d;
+  }
+
   /* referees are keyed by the REF phone (last field); a referee's card count is
      the number of DISTINCT card phone numbers (the candidate's own phone) —
      the same candidate submitted twice counts once. Names are display-only. */
@@ -255,21 +264,23 @@
     var order = [];
     cards.forEach(function (c, i) {
       if (!c.ref || !c.ref.phone) return;
-      var p = c.ref.phone;
-      if (!byPhone[p]) { byPhone[p] = { name: c.ref.name || '', phones: {}, count: 0 }; order.push(p); }
+      var p = normPhone(c.ref.phone);
+      if (!byPhone[p]) { byPhone[p] = { name: c.ref.name || '', phones: {}, count: 0, display: c.ref.phone }; order.push(p); }
       var r = byPhone[p];
       if (!r.name && c.ref.name) r.name = c.ref.name;
-      var key = c.phone ? c.phone : '__row' + i; // cards without a phone count individually
+      var key = c.phone ? normPhone(c.phone) : '__row' + i; // cards without a phone count individually
       if (!(key in r.phones)) { r.phones[key] = true; r.count++; }
     });
-    return order.map(function (p) { var r = byPhone[p]; return { phone: p, name: r.name, count: r.count }; });
+    return order.map(function (p) { var r = byPhone[p]; return { phone: r.display, name: r.name, count: r.count }; });
   }
 
-  /* names of referees with at least minCards cards (most cards first) */
-  function filterReferees(cards, minCards) {
+  /* names of referees with at least minCards and at most maxCards cards
+     (maxCards empty = no upper limit; most cards first) */
+  function filterReferees(cards, minCards, maxCards) {
     minCards = Math.max(1, parseInt(minCards, 10) || 1);
+    var max = maxCards === '' || maxCards == null ? Infinity : Math.max(0, parseInt(maxCards, 10) || 0);
     return refereeStats(cards)
-      .filter(function (r) { return r.count >= minCards && r.name; })
+      .filter(function (r) { return r.count >= minCards && r.count <= max && r.name; })
       .sort(function (a, b) {
         return b.count - a.count || String(a.name).localeCompare(String(b.name), 'he');
       })
@@ -395,6 +406,7 @@
     exportAllText: exportAllText,
     refereeStats: refereeStats,
     filterReferees: filterReferees,
+    normPhone: normPhone,
     copyText: copyText,
     showToast: showToast,
     SAMPLE_CSV: SAMPLE_CSV

@@ -209,7 +209,7 @@ textarea#f-paste {
 
 /* section 3: search & filter */
 .frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-#f-min {
+#f-min, #f-max {
   width: 70px;
   padding: 6px 8px;
   border: 1px solid var(--line);
