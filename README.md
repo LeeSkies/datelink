@@ -1,5 +1,7 @@
 # מיזם שידוכים — כלים (שני דפים)
 
+**Live:** <https://leeskies.github.io/datelink/> · `https://leeskies.github.io/datelink/export/`
+
 שני דפים פשוטים בסגנון דף הנחיתה של מיזם השידוכים (אותו רקע, Rubik, כחול), RTL מלא.
 אין צורך בשרת — נפתחים ישירות מ-`file://`.
 
