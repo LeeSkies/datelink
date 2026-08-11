@@ -33,18 +33,13 @@ function setup() {
   if (!folder) throw new Error('Upload folder not found. Open CONFIG and set UPLOAD_FOLDER_ID (from the folder URL in Drive).');
   var out = '✓ Responses sheet: ' + ss.getName() + '\n' +
     '✓ Upload folder: ' + folder.getName() + ' (' + countFiles_(folder) + ' files)\n';
-  // Sharing changes work only for the folder OWNER — try it, and if we cannot,
-  // do the same thing manually in the Drive web UI (see README).
-  try {
-    folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
-    CONFIG.ALLOWED_EMAILS.forEach(function (em) { folder.addViewer(em); });
-    out += '✓ Folder shared ONLY with: ' + CONFIG.ALLOWED_EMAILS.join(', ') + '\n';
-  } catch (e) {
-    out += '⚠ Could not change folder sharing from this account (you are not the owner).\n' +
-      '  Do it manually in Drive: right-click the folder → Share → add the second email as Viewer,\n' +
-      '  and make sure "Anyone with the link" is OFF.\n';
-  }
-  out += 'Now: Deploy → New deployment → Web app → Execute as: Me → Access: Anyone with Google account.';
+  // The upload folder belongs to the form owner — sharing is done by THEM in the
+  // Drive web UI (this script only ever READS it; read-only permission).
+  out += '\n➡ Ask the folder owner to do this once in Drive:\n' +
+    '  right-click the upload folder → Share → add the two emails (' +
+    CONFIG.ALLOWED_EMAILS.join(' + ') + ') as Viewer,\n' +
+    '  and make sure "Anyone with the link" is OFF.\n\n' +
+    'Now: Deploy → New deployment → Web app → Execute as: Me → Access: Anyone with Google account.';
   Logger.log(out);
   return out;
 }
