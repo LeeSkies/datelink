@@ -210,6 +210,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('exportAllText includes links', await evalJs(`Tools.exportAllText(Tools.parseAll(Tools.SAMPLE_CSV).cards).includes('Def9876543210Uiop-_-Lkjhg')`));
   check('downloadUrl builder', await evalJs(`Tools.downloadUrl('Xx12345678901234567890')`) === 'https://drive.google.com/uc?export=download&id=Xx12345678901234567890');
   // browser: open/download buttons instead of rendered images
+  await evalJs(`localStorage.removeItem('datelink-export-idx:sample')`); // deterministic start
   await evalJs(`document.getElementById('b-sample').click()`);
   await sleepMs(200);
   await evalJs(`document.getElementById('b-next').click()`); // card 2 (has photos)
@@ -226,17 +227,21 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('img container after card', await evalJs(`document.querySelector('.car').children[1].id`) === 'card' && await evalJs(`document.querySelector('.car').children[2].id`) === 'card-imgs');
 
   console.log('STEP: localStorage position');
-  // navigating saves the position; reloading restores csv + position
+  // navigating saves the position under the current file name; reloading the
+  // page does NOT restore data — only a same-named file gets its position back
   await evalJs(`document.getElementById('b-next').click()`); // 2/3 -> 3/3
   await sleepMs(150);
-  check('idx saved to localStorage', await evalJs(`localStorage.getItem('datelink-export-idx')`) === '2');
-  check('csv saved to localStorage', await evalJs(`(localStorage.getItem('datelink-export-csv') || '').length > 100`));
+  check('idx saved under sample key', await evalJs(`localStorage.getItem('datelink-export-idx:sample')`) === '2');
+  check('no csv persisted', await evalJs(`localStorage.getItem('datelink-export-csv')`) === null);
   await evalJs(`location.reload()`);
   await sleepMs(2000);
-  check('position restored after reload', await evalJs(`document.getElementById('counter').textContent`) === '3 / 3');
-  // a fresh user load (file/paste/sample) starts at card 1 again
-  await evalJs(`document.getElementById('b-sample').click()`);
+  check('reload starts empty', await evalJs(`document.getElementById('counter').textContent`) === '');
+  await evalJs(`document.getElementById('b-sample').click()`); // same key 'sample' again
   await sleepMs(200);
+  check('same file name restores position', await evalJs(`document.getElementById('counter').textContent`) === '3 / 3');
+  // a fresh load (paste — no file name) starts at card 1 again
+  await evalJs(`document.getElementById('f-paste').value = Tools.SAMPLE_CSV; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
+  await sleepMs(300);
   check('fresh load starts at 1', await evalJs(`document.getElementById('counter').textContent`) === '1 / 3');
 
   // ===== no page errors =====

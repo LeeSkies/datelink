@@ -58,8 +58,8 @@
       var T = window.Tools;
       var cards = [];
       var idx = 0;
-      var CSV_KEY = 'datelink-export-csv';
-      var IDX_KEY = 'datelink-export-idx';
+      var IDX_KEY_PREFIX = 'datelink-export-idx:'; // position per file name
+      var currentKey = null;
 
       var fileEl = document.getElementById('f-file');
       var dropEl = document.getElementById('drop');
@@ -72,18 +72,18 @@
       var prevBtn = document.getElementById('b-prev');
       var nextBtn = document.getElementById('b-next');
 
-      function loadCsv(text, restore) {
+      function loadCsv(text, key) {
         syncPasteDir();
         var res = T.parseAll(text);
         cards = res.cards;
-        if (restore && cards.length) {
+        currentKey = key || null;
+        if (currentKey && cards.length) {
           var saved = 0;
-          try { saved = parseInt(localStorage.getItem(IDX_KEY), 10) || 0; } catch (e) {}
+          try { saved = parseInt(localStorage.getItem(IDX_KEY_PREFIX + currentKey), 10) || 0; } catch (e) {}
           idx = Math.min(Math.max(saved, 0), cards.length - 1);
         } else {
           idx = 0;
         }
-        try { localStorage.setItem(CSV_KEY, text); } catch (e) {}
         var html = '';
         if (!cards.length) {
           html = '<span class="err">לא נמצאו כרטיסים. בדקו שזהו קובץ הייצוא של Google Sheets.</span>';
@@ -121,7 +121,7 @@
         counterEl.textContent = (idx + 1) + ' / ' + cards.length;
         prevBtn.disabled = idx === 0;
         nextBtn.disabled = idx === cards.length - 1;
-        try { localStorage.setItem(IDX_KEY, String(idx)); } catch (e) {}
+        if (currentKey) { try { localStorage.setItem(IDX_KEY_PREFIX + currentKey, String(idx)); } catch (e) {} }
       }
 
       function prev() { if (idx > 0) { idx--; render(); } }
@@ -140,7 +140,7 @@
       fileEl.addEventListener('change', function () { if (fileEl.files[0]) readFile(fileEl.files[0]); });
       function readFile(f) {
         var r = new FileReader();
-        r.onload = function () { loadCsv(String(r.result)); };
+        r.onload = function () { loadCsv(String(r.result), f.name); };
         r.readAsText(f, 'utf-8');
       }
 
@@ -157,16 +157,8 @@
       // sample
       document.getElementById('b-sample').addEventListener('click', function () {
         pasteEl.value = T.SAMPLE_CSV;
-        loadCsv(T.SAMPLE_CSV);
+        loadCsv(T.SAMPLE_CSV, 'sample');
       });
-
-      // restore last session (CSV + card position) on reload
-      var savedCsv = null;
-      try { savedCsv = localStorage.getItem(CSV_KEY); } catch (e) {}
-      if (savedCsv) {
-        pasteEl.value = savedCsv;
-        loadCsv(savedCsv, true);
-      }
 
       // carousel controls
       prevBtn.addEventListener('click', prev);
