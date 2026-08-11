@@ -77,8 +77,10 @@ function countFiles_(folder) {
 
 function getSpreadsheet_() {
   if (CONFIG.SPREADSHEET_ID) return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  var active = SpreadsheetApp.getActive();
-  if (active) return active;
+  try {
+    var active = SpreadsheetApp.getActive(); // works only in a script attached to a sheet
+    if (active) return active;
+  } catch (e) { /* standalone script — fall through */ }
   // last resort: first spreadsheet whose title contains the form title.
   // NOTE: set SPREADSHEET_ID in CONFIG to skip this search entirely.
   var it = DriveApp.searchFiles('mimeType="application/vnd.google-apps.spreadsheet" and title contains "' + CONFIG.FORM_TITLE.split(' ')[0] + '"');
