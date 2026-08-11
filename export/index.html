@@ -110,7 +110,13 @@
           img.src = T.thumbUrl(id);
           img.loading = 'lazy';
           img.alt = 'תמונה';
-          img.onerror = function () { a.remove(); }; // no access/broken link → just hide
+          img.onerror = function () {
+            img.remove();
+            var span = document.createElement('span');
+            span.className = 'img-fallback';
+            span.textContent = '📎 פתח תמונה';
+            a.appendChild(span);
+          }; // no access/broken link → clickable fallback instead of silence
           a.appendChild(img);
           imgsEl.appendChild(a);
         });

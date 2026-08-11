@@ -217,6 +217,13 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('photo strip shows 2 imgs on card 2', await evalJs(`document.querySelectorAll('#card-imgs img').length`) === 2);
   check('imgs link to the file', await evalJs(`document.querySelector('#card-imgs a').getAttribute('href')`) === 'https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty');
   check('img container after card', await evalJs(`document.querySelector('.car').children[1].id`) === 'card' && await evalJs(`document.querySelector('.car').children[2].id`) === 'card-imgs');
+  // broken/unauthorized thumbnails degrade to a clickable "open photo" link
+  await evalJs(`Tools.thumbUrl = function () { return 'http://127.0.0.1:1/nope'; }; document.getElementById('b-prev').click(); document.getElementById('b-next').click();`);
+  await sleepMs(700);
+  check('broken photo -> open-photo link', await evalJs(`document.querySelectorAll('#card-imgs .img-fallback').length`) === 2);
+  check('wrapper link kept after failure', await evalJs(`document.querySelectorAll('#card-imgs a').length`) === 2);
+  await evalJs(`Tools.thumbUrl = function (id) { return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; }; document.getElementById('b-prev').click(); document.getElementById('b-next').click();`);
+  await sleepMs(300);
 
   console.log('STEP: localStorage position');
   // navigating saves the position; reloading restores csv + position

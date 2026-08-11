@@ -213,3 +213,11 @@ textarea#f-paste {
   box-shadow: 0 2px 10px rgba(26, 58, 96, 0.14);
 }
 .drop .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.card-imgs .img-fallback {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
