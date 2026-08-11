@@ -28,10 +28,10 @@ var CONFIG = {
 
 function setup() {
   checkEmails_();
-  var ss = getSpreadsheet_();
+  var ssId = getSheetId_();
   var folder = getUploadFolder_();
   if (!folder) throw new Error('Upload folder not found. Open CONFIG and set UPLOAD_FOLDER_ID (from the folder URL in Drive).');
-  var out = '✓ Responses sheet: ' + ss.getName() + '\n' +
+  var out = '✓ Responses sheet: ' + DriveApp.getFileById(ssId).getName() + '\n' +
     '✓ Upload folder: ' + folder.getName() + ' (' + countFiles_(folder) + ' files)\n';
   // The upload folder belongs to the form owner — sharing is done by THEM in the
   // Drive web UI (this script only ever READS it; read-only permission).
@@ -70,16 +70,13 @@ function countFiles_(folder) {
   return n;
 }
 
-function getSpreadsheet_() {
-  if (CONFIG.SPREADSHEET_ID) return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  try {
-    var active = SpreadsheetApp.getActive(); // works only in a script attached to a sheet
-    if (active) return active;
-  } catch (e) { /* standalone script — fall through */ }
-  // last resort: first spreadsheet whose title contains the form title.
-  // NOTE: set SPREADSHEET_ID in CONFIG to skip this search entirely.
+/* Returns the responses spreadsheet ID. Read-only: opens via Drive metadata,
+   values are read with the Sheets API (which honors the readonly scope —
+   SpreadsheetApp itself would require the full "spreadsheets" scope). */
+function getSheetId_() {
+  if (CONFIG.SPREADSHEET_ID) return CONFIG.SPREADSHEET_ID;
   var it = DriveApp.searchFiles('mimeType="application/vnd.google-apps.spreadsheet" and title contains "' + CONFIG.FORM_TITLE.split(' ')[0] + '"');
-  if (it.hasNext()) return SpreadsheetApp.open(it.next());
+  if (it.hasNext()) return it.next().getId();
   throw new Error('Spreadsheet not found — set CONFIG.SPREADSHEET_ID (copy from the sheet URL).');
 }
 
@@ -215,9 +212,13 @@ function buildCard(rec) {
 /* ===== data: sheet rows + drive files ===== */
 
 function loadData_() {
-  var ss = getSpreadsheet_();
-  var sheet = ss.getSheets()[0];
-  var values = sheet.getDataRange().getValues();
+  var ssId = getSheetId_();
+  var meta = Sheets.Spreadsheets.get(ssId);
+  var sheetTitle = meta.sheets[0].properties.title;
+  // UNFORMATTED_VALUE: raw values — timestamps come back as serial numbers
+  // (days since 1899-12-30, UTC) which we convert to real Date instants.
+  var res = Sheets.Spreadsheets.Values.get(ssId, sheetTitle, { valueRenderOption: 'UNFORMATTED_VALUE' });
+  var values = res.values || [];
   if (values.length < 2) throw new Error('הגיליון ריק — עדיין אין תשובות.');
 
   var headers = values[0].map(normHeader);
@@ -257,7 +258,14 @@ function loadData_() {
       var idx = colByField[k];
       if (idx < row.length) rec[k] = clean(row[idx]);
     });
-    var ts = row[tsCol] instanceof Date ? row[tsCol].getTime() : null;
+    var ts = null;
+    var rawTs = row[tsCol];
+    if (typeof rawTs === 'number') {
+      ts = new Date(Math.round((rawTs - 25569) * 86400000)).getTime(); // Sheets serial -> epoch ms
+    } else if (typeof rawTs === 'string' && rawTs.trim()) {
+      var d = Date.parse(rawTs);
+      if (!isNaN(d)) ts = d;
+    }
 
     if (imageCol !== -1 && imageCol < row.length && String(row[imageCol] || '').trim()) {
       var names = String(row[imageCol]).split(/\s*,\s*|\n+/).filter(function (n) { return n.trim(); });
