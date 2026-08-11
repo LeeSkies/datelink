@@ -13,9 +13,9 @@
 
 var CONFIG = {
   // Optional overrides. Leave '' for auto-detection:
-  SPREADSHEET_ID: '',     // e.g. '1AbC...'; when '' the bound/active spreadsheet is used
+  SPREADSHEET_ID: '1p8smnPE8zwol6WbqxC3h7e58rrCCb0f9kBCO8pSyYIw', // responses spreadsheet
   FORM_TITLE: 'וְאֵרַשְׂתִּיךְ – מיזם שידוכים',  // used to find the upload folder by name
-  UPLOAD_FOLDER_ID: '',   // e.g. '0Bx...'; when '' the folder is searched by name
+  UPLOAD_FOLDER_ID: '13zV3ZhS-n_cN9Vo7rI8rNPnAc9wjQvMHlM9hqhfcqk4XRog-3sdO-NWEG2AZjm28EeTIWdTH', // form upload folder
   // Which header holds the uploaded-file names:
   IMAGE_HEADER_HINTS: ['צירוף תמונה', 'תמונה', 'העלאת תמונות', 'קובץ מצורף'],
   // Uploads happen within seconds of the row timestamp; window guards against
@@ -23,7 +23,7 @@ var CONFIG = {
   MATCH_WINDOW_MS: 5 * 60 * 1000,
   IMAGE_MAX: 2, // how many photos to show per card
   // The ONLY accounts that may open the app. Fill with your email + your partner's.
-  ALLOWED_EMAILS: ['PUT-YOUR-EMAIL@gmail.com', 'PUT-PARTNER-EMAIL@gmail.com']
+  ALLOWED_EMAILS: ['lee2dskies@gmail.com', 'michalivgi1999@gmail.com']
 };
 
 function setup() {
