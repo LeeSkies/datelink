@@ -102,23 +102,21 @@
         cardEl.textContent = card.text;
         imgsEl.innerHTML = '';
         card.images.forEach(function (id) {
-          var a = document.createElement('a');
-          a.href = T.openUrl(id);
-          a.target = '_blank';
-          a.rel = 'noopener';
-          var img = document.createElement('img');
-          img.src = T.thumbUrl(id);
-          img.loading = 'lazy';
-          img.alt = 'תמונה';
-          img.onerror = function () {
-            img.remove();
-            var span = document.createElement('span');
-            span.className = 'img-fallback';
-            span.textContent = '📎 פתח תמונה';
-            a.appendChild(span);
-          }; // no access/broken link → clickable fallback instead of silence
-          a.appendChild(img);
-          imgsEl.appendChild(a);
+          var div = document.createElement('div');
+          div.className = 'photo';
+          var open = document.createElement('a');
+          open.className = 'btn ghost small';
+          open.href = T.openUrl(id);
+          open.target = '_blank';
+          open.rel = 'noopener';
+          open.textContent = '📁 פתח תמונה';
+          var dl = document.createElement('a');
+          dl.className = 'btn ghost small';
+          dl.href = T.downloadUrl(id);
+          dl.textContent = '⬇️ הורד תמונה';
+          div.appendChild(open);
+          div.appendChild(dl);
+          imgsEl.appendChild(div);
         });
         counterEl.textContent = (idx + 1) + ' / ' + cards.length;
         prevBtn.disabled = idx === 0;

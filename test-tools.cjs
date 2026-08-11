@@ -208,22 +208,22 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('card text has no links', !parsed.cards[1].text.includes('drive.google'));
   check('cardWithImages appends links', await evalJs(`Tools.cardWithImages(Tools.parseAll(Tools.SAMPLE_CSV).cards[1]).includes('🖼️ תמונה: https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty')`));
   check('exportAllText includes links', await evalJs(`Tools.exportAllText(Tools.parseAll(Tools.SAMPLE_CSV).cards).includes('Def9876543210Uiop-_-Lkjhg')`));
-  // browser render: stub thumbnails so they resolve, then check the photo strip
-  await evalJs(`Tools.thumbUrl = function (id) { return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; }; Tools.openUrl = function (id) { return 'https://drive.google.com/open?id=' + id; };`);
+  check('downloadUrl builder', await evalJs(`Tools.downloadUrl('Xx12345678901234567890')`) === 'https://drive.google.com/uc?export=download&id=Xx12345678901234567890');
+  // browser: open/download buttons instead of rendered images
   await evalJs(`document.getElementById('b-sample').click()`);
   await sleepMs(200);
   await evalJs(`document.getElementById('b-next').click()`); // card 2 (has photos)
   await sleepMs(200);
-  check('photo strip shows 2 imgs on card 2', await evalJs(`document.querySelectorAll('#card-imgs img').length`) === 2);
-  check('imgs link to the file', await evalJs(`document.querySelector('#card-imgs a').getAttribute('href')`) === 'https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty');
+  check('2 photo button groups on card 2', await evalJs(`document.querySelectorAll('#card-imgs .photo').length`) === 2);
+  check('open button href', await evalJs(`document.querySelector('#card-imgs .photo a').getAttribute('href')`) === 'https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty');
+  check('download button href', await evalJs(`document.querySelector('#card-imgs .photo a:nth-child(2)').getAttribute('href')`) === 'https://drive.google.com/uc?export=download&id=Abc1234567890XyZ-_Qwerty');
+  check('buttons open in new tab', await evalJs(`document.querySelector('#card-imgs .photo a').getAttribute('target')`) === '_blank');
+  await evalJs(`document.getElementById('b-prev').click()`); // card 1 (no photos)
+  await sleepMs(200);
+  check('no buttons on card without photos', await evalJs(`document.querySelectorAll('#card-imgs .photo').length`) === 0);
+  await evalJs(`document.getElementById('b-next').click()`);
+  await sleepMs(200);
   check('img container after card', await evalJs(`document.querySelector('.car').children[1].id`) === 'card' && await evalJs(`document.querySelector('.car').children[2].id`) === 'card-imgs');
-  // broken/unauthorized thumbnails degrade to a clickable "open photo" link
-  await evalJs(`Tools.thumbUrl = function () { return 'http://127.0.0.1:1/nope'; }; document.getElementById('b-prev').click(); document.getElementById('b-next').click();`);
-  await sleepMs(700);
-  check('broken photo -> open-photo link', await evalJs(`document.querySelectorAll('#card-imgs .img-fallback').length`) === 2);
-  check('wrapper link kept after failure', await evalJs(`document.querySelectorAll('#card-imgs a').length`) === 2);
-  await evalJs(`Tools.thumbUrl = function (id) { return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; }; document.getElementById('b-prev').click(); document.getElementById('b-next').click();`);
-  await sleepMs(300);
 
   console.log('STEP: localStorage position');
   // navigating saves the position; reloading restores csv + position

@@ -37,6 +37,8 @@
   function thumbUrl(id) { return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w800'; }
   /* link to open the original file */
   function openUrl(id) { return 'https://drive.google.com/open?id=' + id; }
+  /* link that downloads the original file (requires the viewer's Drive access) */
+  function downloadUrl(id) { return 'https://drive.google.com/uc?export=download&id=' + id; }
 
   /* ===== CSV parsing (RFC-4180-ish: quotes, commas & newlines inside quotes) ===== */
   function parseCSV(text) {
@@ -346,6 +348,7 @@
     extractFileIds: extractFileIds,
     thumbUrl: thumbUrl,
     openUrl: openUrl,
+    downloadUrl: downloadUrl,
     cardText: cardText,
     cardWithImages: cardWithImages,
     exportAllText: exportAllText,
