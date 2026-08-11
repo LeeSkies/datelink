@@ -27,16 +27,24 @@ var CONFIG = {
 };
 
 function setup() {
-  var folder = getUploadFolder_();
-  if (!folder) throw new Error('Upload folder not found. Open CONFIG and set UPLOAD_FOLDER_ID.');
   checkEmails_();
-  // private folder, visible ONLY to the two allowed accounts:
-  folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
-  CONFIG.ALLOWED_EMAILS.forEach(function (em) { folder.addViewer(em); });
-  var n = folder.getFiles().hasNext() ? countFiles_(folder) : 0;
-  var out = '✓ Upload folder: ' + folder.getName() + ' (' + n + ' files)\n' +
-    '✓ Folder shared ONLY with: ' + CONFIG.ALLOWED_EMAILS.join(', ') + '\n' +
-    'Now: Deploy → New deployment → Web app → Execute as: Me → Access: Anyone with Google account.';
+  var ss = getSpreadsheet_();
+  var folder = getUploadFolder_();
+  if (!folder) throw new Error('Upload folder not found. Open CONFIG and set UPLOAD_FOLDER_ID (from the folder URL in Drive).');
+  var out = '✓ Responses sheet: ' + ss.getName() + '\n' +
+    '✓ Upload folder: ' + folder.getName() + ' (' + countFiles_(folder) + ' files)\n';
+  // Sharing changes work only for the folder OWNER — try it, and if we cannot,
+  // do the same thing manually in the Drive web UI (see README).
+  try {
+    folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+    CONFIG.ALLOWED_EMAILS.forEach(function (em) { folder.addViewer(em); });
+    out += '✓ Folder shared ONLY with: ' + CONFIG.ALLOWED_EMAILS.join(', ') + '\n';
+  } catch (e) {
+    out += '⚠ Could not change folder sharing from this account (you are not the owner).\n' +
+      '  Do it manually in Drive: right-click the folder → Share → add the second email as Viewer,\n' +
+      '  and make sure "Anyone with the link" is OFF.\n';
+  }
+  out += 'Now: Deploy → New deployment → Web app → Execute as: Me → Access: Anyone with Google account.';
   Logger.log(out);
   return out;
 }
@@ -71,10 +79,11 @@ function getSpreadsheet_() {
   if (CONFIG.SPREADSHEET_ID) return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   var active = SpreadsheetApp.getActive();
   if (active) return active;
-  // last resort: first spreadsheet whose title contains the form title
+  // last resort: first spreadsheet whose title contains the form title.
+  // NOTE: set SPREADSHEET_ID in CONFIG to skip this search entirely.
   var it = DriveApp.searchFiles('mimeType="application/vnd.google-apps.spreadsheet" and title contains "' + CONFIG.FORM_TITLE.split(' ')[0] + '"');
   if (it.hasNext()) return SpreadsheetApp.open(it.next());
-  throw new Error('Spreadsheet not found — set CONFIG.SPREADSHEET_ID or run the script from the responses sheet.');
+  throw new Error('Spreadsheet not found — set CONFIG.SPREADSHEET_ID (copy from the sheet URL).');
 }
 
 function getUploadFolder_() {
