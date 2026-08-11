@@ -206,3 +206,24 @@ textarea#f-paste {
 .card-imgs { display: flex; flex-wrap: wrap; gap: 8px; }
 .card-imgs .photo { display: flex; gap: 8px; }
 .drop .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* section 3: search & filter */
+.frow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#f-min {
+  width: 70px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+.ref-head { color: var(--muted); font-size: 13px; margin-top: 12px; }
+#ref-list {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  background: #f5f9fd;
+  border-radius: 12px;
+  padding: 16px 20px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.8;
+}

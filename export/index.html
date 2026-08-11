@@ -48,6 +48,20 @@
       </div>
       <div class="kbd">מקלדת: ◀ חץ שמאלה = הבא, חץ ימינה = הקודם · C = העתקת הכרטיס הנוכחי</div>
     </section>
+
+    <section class="panel" id="filter-panel">
+      <h2>3. חיפוש וסינון</h2>
+      <div class="frow">
+        <label for="f-min">הצג מגישים עם לפחות</label>
+        <input type="number" id="f-min" min="1" value="1" step="1">
+        <label for="f-min">כרטיסים</label>
+        <button id="b-filter" class="btn">סנן</button>
+      </div>
+      <div id="ref-out"></div>
+      <div class="actions">
+        <button id="b-copy-refs" class="btn ghost" hidden>העתק רשימה</button>
+      </div>
+    </section>
   </main>
 
   <div id="toast" class="toast" hidden></div>
@@ -200,6 +214,36 @@
         document.body.appendChild(a);
         a.click();
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      });
+
+      // ===== section 3: search & filter (referees by card count) =====
+      var refOutEl = document.getElementById('ref-out');
+      var copyRefsBtn = document.getElementById('b-copy-refs');
+      function applyFilter() {
+        var min = parseInt(document.getElementById('f-min').value, 10) || 1;
+        if (!cards.length) {
+          refOutEl.innerHTML = '<span class="warn">טענו קובץ CSV קודם (שלב 1)</span>';
+          copyRefsBtn.hidden = true;
+          return;
+        }
+        var names = T.filterReferees(cards, min);
+        if (!names.length) {
+          refOutEl.innerHTML = '<span class="warn">אין מגישים עם ' + min + ' כרטיסים ומעלה</span>';
+          copyRefsBtn.hidden = true;
+          return;
+        }
+        refOutEl.innerHTML =
+          '<div class="ref-head">מגישים עם ' + min + '+ כרטיסים (' + names.length + '):</div>' +
+          '<pre id="ref-list" dir="auto">' + names.join('\n') + '</pre>';
+        copyRefsBtn.hidden = false;
+      }
+      document.getElementById('b-filter').addEventListener('click', applyFilter);
+      copyRefsBtn.addEventListener('click', function () {
+        var list = document.getElementById('ref-list');
+        if (!list) return;
+        T.copyText(list.textContent).then(function (ok) {
+          T.showToast(ok ? '✓ הרשימה הועתקה!' : 'לא ניתן היה להעתיק', !ok);
+        });
       });
     })();
   </script>

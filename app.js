@@ -137,10 +137,14 @@
     var i = 0;
     var shift = 0; // merged titles span extra header cells but only one data column
     var imageCols = []; // photo columns (question titles containing "צירוף/העלאה תמונה")
+    var refNameCol = -1, refPhoneCol = -1; // referee identity = last two fields (שם מלא + phone)
     while (i < headers.length) {
       var h = headers[i];
       var nh = normHeader(h);
       if (!nh) { i++; continue; }
+
+      if (nh === 'שם מלא') refNameCol = i - shift;
+      if (nh === 'מספר טלפון' || nh === 'מספר פלאפון') refPhoneCol = i - shift; // last one wins
 
       var matched = null;
       var end = i; // last consumed header index
@@ -172,7 +176,7 @@
         i++;
       }
     }
-    return { colByField: colByField, combinedLooking: combinedLooking, unknown: unknown, imageCols: imageCols };
+    return { colByField: colByField, combinedLooking: combinedLooking, unknown: unknown, imageCols: imageCols, refNameCol: refNameCol, refPhoneCol: refPhoneCol };
   }
 
   /* split a combined "מה אני מחפש+ טווח גילאים" answer into looking + age range */
@@ -242,6 +246,36 @@
   /* full export text (cards + photo links), same blank-line spacing */
   function exportAllText(cards) { return cards.map(cardWithImages).join('\n\n\n'); }
 
+  /* ===== referee stats ===== */
+  /* referees are keyed by the REF phone (last field); a referee's card count is
+     the number of DISTINCT card phone numbers (the candidate's own phone) —
+     the same candidate submitted twice counts once. Names are display-only. */
+  function refereeStats(cards) {
+    var byPhone = {};
+    var order = [];
+    cards.forEach(function (c, i) {
+      if (!c.ref || !c.ref.phone) return;
+      var p = c.ref.phone;
+      if (!byPhone[p]) { byPhone[p] = { name: c.ref.name || '', phones: {}, count: 0 }; order.push(p); }
+      var r = byPhone[p];
+      if (!r.name && c.ref.name) r.name = c.ref.name;
+      var key = c.phone ? c.phone : '__row' + i; // cards without a phone count individually
+      if (!(key in r.phones)) { r.phones[key] = true; r.count++; }
+    });
+    return order.map(function (p) { var r = byPhone[p]; return { phone: p, name: r.name, count: r.count }; });
+  }
+
+  /* names of referees with at least minCards cards (most cards first) */
+  function filterReferees(cards, minCards) {
+    minCards = Math.max(1, parseInt(minCards, 10) || 1);
+    return refereeStats(cards)
+      .filter(function (r) { return r.count >= minCards && r.name; })
+      .sort(function (a, b) {
+        return b.count - a.count || String(a.name).localeCompare(String(b.name), 'he');
+      })
+      .map(function (r) { return r.name; });
+  }
+
   /* ===== full pipeline: CSV text -> { cards, skipped, unknown } ===== */
   function parseAll(csvText) {
     var rows = parseCSV(csvText);
@@ -282,7 +316,14 @@
         map.imageCols.forEach(function (ic) {
           if (ic < row.length) images = images.concat(extractFileIds(row[ic]));
         });
-        cards.push({ text: card, images: images });
+        var ref = null;
+        if (map.refNameCol >= 0 && map.refPhoneCol >= 0 &&
+            map.refNameCol < row.length && map.refPhoneCol < row.length) {
+          var rn = clean(row[map.refNameCol]);
+          var rp = clean(row[map.refPhoneCol]);
+          if (rn || rp) ref = { name: rn, phone: rp };
+        }
+        cards.push({ text: card, images: images, ref: ref, phone: rec.phone || '' });
       } else {
         skipped++;
       }
@@ -352,6 +393,8 @@
     cardText: cardText,
     cardWithImages: cardWithImages,
     exportAllText: exportAllText,
+    refereeStats: refereeStats,
+    filterReferees: filterReferees,
     copyText: copyText,
     showToast: showToast,
     SAMPLE_CSV: SAMPLE_CSV

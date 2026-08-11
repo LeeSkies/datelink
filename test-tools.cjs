@@ -244,6 +244,35 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await sleepMs(300);
   check('fresh load starts at 1', await evalJs(`document.getElementById('counter').textContent`) === '1 / 3');
 
+  console.log('STEP: search & filter');
+  // unit: referee stats + dedup by personal number
+  check('sample refs extracted', await evalJs(`JSON.stringify(Tools.parseAll(Tools.SAMPLE_CSV).cards[0].ref)`) === '{"name":"אבי ישראלי","phone":"050-3333333"}');
+  check('filter 1+ -> 3 names', await evalJs(`Tools.filterReferees(Tools.parseAll(Tools.SAMPLE_CSV).cards, 1).join(',')`) === 'אבי ישראלי,יצחק כהן,שמעון לוי');
+  check('filter 2+ -> empty', await evalJs(`Tools.filterReferees(Tools.parseAll(Tools.SAMPLE_CSV).cards, 2).length`) === 0);
+  // browser: paste a csv with a referee holding 2 distinct candidates
+  const refCsv = [
+    'שם + שם משפחה:,גיל:,מה אני מחפש+ טווח גילאים:,מספר פלאפון לברורים ויצירת קשר:,מספר פלאפון אישי שלך: (לא יפורסם ),צירוף תמונה עדכנית:,הגעתי דרך:,שם מלא:,מספר פלאפון:,חותמת זמן',
+    'אבי,25,בחורה רצינית,050-1,050-2,,קבוצה,מיכל,050-9,2026-01-01 10:00:00',
+    'בועז,27,בחורה טובה,050-1,050-4,,אתר,מיכל,050-9,2026-01-02 10:00:00', // same candidate phone -> deduped
+    'גיל,28,מחפש שידוך,050-5,050-6,,קבוצה,מיכל,050-9,2026-01-03 10:00:00',
+    'דוד,29,בחורה,050-7,050-2,,אתר,מיכל,050-8,2026-01-04 10:00:00' // same NAME, other ref phone -> separate referee
+  ].join('\n');
+  await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(refCsv)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
+  await sleepMs(300);
+  check('card phone attached', await evalJs(`Tools.parseAll(document.getElementById('f-paste').value).cards[0].phone`) === '050-1');
+  check('same candidate twice counts once', await evalJs(`Tools.refereeStats(Tools.parseAll(document.getElementById('f-paste').value).cards)[0].count`) === 2);
+  check('same name different ref phone = separate referee', await evalJs(`Tools.filterReferees(Tools.parseAll(document.getElementById('f-paste').value).cards, 1).filter(n => n === 'מיכל').length`) === 2);
+  await evalJs(`document.getElementById('f-min').value = '2'; document.getElementById('b-filter').click();`);
+  await sleepMs(200);
+  check('filter 2+ shows only מיכל', await evalJs(`document.getElementById('ref-list').textContent`) === 'מיכל');
+  check('copy list button visible', await evalJs(`!document.getElementById('b-copy-refs').hidden`));
+  await evalJs(`document.getElementById('b-copy-refs').click()`);
+  await sleepMs(200);
+  check('copy list toast', await evalJs(`document.getElementById('toast').hidden`) === false);
+  await evalJs(`document.getElementById('f-min').value = '3'; document.getElementById('b-filter').click();`);
+  await sleepMs(200);
+  check('filter 3+ shows warning', await evalJs(`document.getElementById('ref-out').textContent.includes('אין מגישים')`) && await evalJs(`document.getElementById('b-copy-refs').hidden`));
+
   // ===== no page errors =====
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | ').slice(0, 200));
 
