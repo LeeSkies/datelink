@@ -16,6 +16,28 @@
   /* ===== helpers ===== */
   function clean(v) { return String(v == null ? '' : v).replace(/\r/g, '').trim(); }
 
+  /* ===== photos: Google Drive links inside the CSV photo column ===== */
+  /* extract Drive file IDs from a cell (any number of links, any separators) */
+  function extractFileIds(v) {
+    var out = [];
+    var m;
+    var re = /(?:drive\.google\.com|docs\.google\.com|(?:[\w-]+\.)*googleusercontent\.com)\/[^\s"',;)]+/g;
+    while ((m = re.exec(String(v || '')))) {
+      var u = m[0];
+      var id = null;
+      var a = u.match(/[?&]id=([-\w]{20,})/);
+      if (a) id = a[1];
+      if (!id) { var b = u.match(/\/d\/([-\w]{20,})/); if (b) id = b[1]; }
+      if (id && out.indexOf(id) === -1) out.push(id);
+    }
+    return out;
+  }
+
+  /* thumbnail image URL — loads only for Google accounts with access to the file */
+  function thumbUrl(id) { return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w800'; }
+  /* link to open the original file */
+  function openUrl(id) { return 'https://drive.google.com/open?id=' + id; }
+
   /* ===== CSV parsing (RFC-4180-ish: quotes, commas & newlines inside quotes) ===== */
   function parseCSV(text) {
     text = String(text || '').replace(/^\uFEFF/, '');
@@ -112,6 +134,7 @@
 
     var i = 0;
     var shift = 0; // merged titles span extra header cells but only one data column
+    var imageCols = []; // photo columns (question titles containing "צירוף/העלאה תמונה")
     while (i < headers.length) {
       var h = headers[i];
       var nh = normHeader(h);
@@ -138,13 +161,16 @@
         if (!(matched in colByField)) colByField[matched] = i - shift;
         shift += end - i;
         i = end + 1;
+      } else if (/^(צירוף|העלאה|הוספת)[^]*תמונה/.test(nh)) {
+        imageCols.push(i - shift);
+        i++;
       } else {
         var ignored = IGNORED_HEADERS.some(function (ig) { return nh.indexOf(normHeader(ig)) !== -1; });
         if (!ignored) unknown.push(h);
         i++;
       }
     }
-    return { colByField: colByField, combinedLooking: combinedLooking, unknown: unknown };
+    return { colByField: colByField, combinedLooking: combinedLooking, unknown: unknown, imageCols: imageCols };
   }
 
   /* split a combined "מה אני מחפש+ טווח גילאים" answer into looking + age range */
@@ -199,7 +225,20 @@
   }
 
   /* join cards with exactly 3 blank lines between them */
-  function joinCards(cards) { return cards.join('\n\n\n'); }
+  function joinCards(cards) { return cards.map(cardText).join('\n\n\n'); }
+
+  /* plain card text (what gets copied) */
+  function cardText(c) { return typeof c === 'string' ? c : c.text; }
+
+  /* card text + its photo links (for the txt download) */
+  function cardWithImages(c) {
+    var t = cardText(c);
+    var imgs = (c.images || []).map(function (id) { return '🖼️ תמונה: ' + openUrl(id); });
+    return imgs.length ? t + '\n\n' + imgs.join('\n') : t;
+  }
+
+  /* full export text (cards + photo links), same blank-line spacing */
+  function exportAllText(cards) { return cards.map(cardWithImages).join('\n\n\n'); }
 
   /* ===== full pipeline: CSV text -> { cards, skipped, unknown } ===== */
   function parseAll(csvText) {
@@ -236,8 +275,15 @@
         rec.agerange = split.agerange;
       }
       var card = buildCard(rec);
-      if (card) cards.push(card);
-      else skipped++;
+      if (card) {
+        var images = [];
+        map.imageCols.forEach(function (ic) {
+          if (ic < row.length) images = images.concat(extractFileIds(row[ic]));
+        });
+        cards.push({ text: card, images: images });
+      } else {
+        skipped++;
+      }
     }
     return { cards: cards, skipped: skipped, unknown: map.unknown, combined: map.combinedLooking !== -1 };
   }
@@ -284,7 +330,7 @@
   var SAMPLE_CSV = [
     'שם + שם משפחה:,גיל:,סטטוס:,רמה דתית:,עדה , רקע משפחתי:,מגורים:,עיסוק,קצת עלי:,מה אני מחפש+ טווח גילאים:,מספר פלאפון לברורים ויצירת קשר:,מספר פלאפון אישי שלך: (לא יפורסם ),צירוף תמונה עדכנית: (עד שתי תמונות),הגעתי דרך:,שם מלא:,מספר פלאפון:,חותמת זמן',
     'ישראל ישראלי,25,רווק,דתי לאומי,"אשכנזי, משפחה חמה",ירושלים,סטודנט להנדסה,"אני בן אדם חביב ונחמד, כליל המעלות והשלמות",בחורה רצינית בת 22-27,050-1111111,050-2222222,,ווצאפ,אבי ישראלי,050-3333333,2026-01-01 10:00:00',
-    'משה כהן,27,רווק,דתי,"ספרדי, עדה ירושלמית",חיפה,איש הייטק,"מחפש בחורה טובה\nעם מידות טובות","מחפש בחורה רצינית\nטווח גילאים: 24-28",050-4444444,050-5555555,,קבוצה,יצחק כהן,050-6666666,2026-01-02 12:30:00',
+    'משה כהן,27,רווק,דתי,"ספרדי, עדה ירושלמית",חיפה,איש הייטק,"מחפש בחורה טובה\nעם מידות טובות","מחפש בחורה רצינית\nטווח גילאים: 24-28",050-4444444,050-5555555,"https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty, https://drive.google.com/file/d/Def9876543210Uiop-_-Lkjhg/view",קבוצה,יצחק כהן,050-6666666,2026-01-02 12:30:00',
     'דוד לוי,,רווק,דתי לאומי,"אשכנזי",בני ברק,אברך,,מחפש שידוך הולם,050-7777777,050-8888888,,אתר,שמעון לוי,050-9999999,2026-01-03 09:15:00'
   ].join('\n');
 
@@ -297,6 +343,12 @@
     joinCards: joinCards,
     parseAll: parseAll,
     buildFormLink: buildFormLink,
+    extractFileIds: extractFileIds,
+    thumbUrl: thumbUrl,
+    openUrl: openUrl,
+    cardText: cardText,
+    cardWithImages: cardWithImages,
+    exportAllText: exportAllText,
     copyText: copyText,
     showToast: showToast,
     SAMPLE_CSV: SAMPLE_CSV

@@ -201,3 +201,15 @@ textarea#f-paste {
 }
 
 .kbd { font-size: 12px; color: var(--muted); margin-top: 10px; text-align: center; }
+
+/* photo strip on cards */
+.card-imgs { display: flex; flex-wrap: wrap; gap: 10px; }
+.card-imgs a { display: block; line-height: 0; }
+.card-imgs img {
+  display: block;
+  max-height: 200px;
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(26, 58, 96, 0.14);
+}
+.drop .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }

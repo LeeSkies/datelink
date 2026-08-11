@@ -194,6 +194,44 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   // download button exists
   check('download button', await evalJs(`!!document.getElementById('b-download')`));
 
+  console.log('STEP: photos from sheet links');
+  // unit: extract Drive file IDs from open?id= and /file/d/ links
+  check('extract open?id', await evalJs(`Tools.extractFileIds('https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty')[0]`) === 'Abc1234567890XyZ-_Qwerty');
+  check('extract file/d', await evalJs(`Tools.extractFileIds('https://drive.google.com/file/d/Def9876543210Uiop-_-Lkjhg/view?usp=sharing')[0]`) === 'Def9876543210Uiop-_-Lkjhg');
+  check('extract two links from one cell', await evalJs(`Tools.extractFileIds('a: https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty, https://drive.google.com/file/d/Def9876543210Uiop-_-Lkjhg/view').join(',')`) === 'Abc1234567890XyZ-_Qwerty,Def9876543210Uiop-_-Lkjhg');
+  check('extract empty cell', await evalJs(`Tools.extractFileIds('').length`) === 0);
+  check('thumbUrl builder', await evalJs(`Tools.thumbUrl('Xx12345678901234567890')`) === 'https://drive.google.com/thumbnail?id=Xx12345678901234567890&sz=w800');
+  // parseAll attaches photos per card
+  const parsed = await evalJs(`Tools.parseAll(Tools.SAMPLE_CSV)`);
+  check('card 2 has 2 photos', parsed.cards[1].images.length === 2);
+  check('card 1 has 0 photos', parsed.cards[0].images.length === 0);
+  check('card text has no links', !parsed.cards[1].text.includes('drive.google'));
+  check('cardWithImages appends links', await evalJs(`Tools.cardWithImages(Tools.parseAll(Tools.SAMPLE_CSV).cards[1]).includes('🖼️ תמונה: https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty')`));
+  check('exportAllText includes links', await evalJs(`Tools.exportAllText(Tools.parseAll(Tools.SAMPLE_CSV).cards).includes('Def9876543210Uiop-_-Lkjhg')`));
+  // browser render: stub thumbnails so they resolve, then check the photo strip
+  await evalJs(`Tools.thumbUrl = function (id) { return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; }; Tools.openUrl = function (id) { return 'https://drive.google.com/open?id=' + id; };`);
+  await evalJs(`document.getElementById('b-sample').click()`);
+  await sleepMs(200);
+  await evalJs(`document.getElementById('b-next').click()`); // card 2 (has photos)
+  await sleepMs(200);
+  check('photo strip shows 2 imgs on card 2', await evalJs(`document.querySelectorAll('#card-imgs img').length`) === 2);
+  check('imgs link to the file', await evalJs(`document.querySelector('#card-imgs a').getAttribute('href')`) === 'https://drive.google.com/open?id=Abc1234567890XyZ-_Qwerty');
+  check('img container after card', await evalJs(`document.querySelector('.car').children[1].id`) === 'card' && await evalJs(`document.querySelector('.car').children[2].id`) === 'card-imgs');
+
+  console.log('STEP: localStorage position');
+  // navigating saves the position; reloading restores csv + position
+  await evalJs(`document.getElementById('b-next').click()`); // 2/3 -> 3/3
+  await sleepMs(150);
+  check('idx saved to localStorage', await evalJs(`localStorage.getItem('datelink-export-idx')`) === '2');
+  check('csv saved to localStorage', await evalJs(`(localStorage.getItem('datelink-export-csv') || '').length > 100`));
+  await evalJs(`location.reload()`);
+  await sleepMs(2000);
+  check('position restored after reload', await evalJs(`document.getElementById('counter').textContent`) === '3 / 3');
+  // a fresh user load (file/paste/sample) starts at card 1 again
+  await evalJs(`document.getElementById('b-sample').click()`);
+  await sleepMs(200);
+  check('fresh load starts at 1', await evalJs(`document.getElementById('counter').textContent`) === '1 / 3');
+
   // ===== no page errors =====
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | ').slice(0, 200));
 
