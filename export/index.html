@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>מיזם שידוכים — כרטיסים מקובץ CSV</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="overlay"></div>
+
+  <main class="wrap">
+    <header class="brand">
+      <h1>מיזם שידוכים</h1>
+      <p class="sub">יצירת כרטיסים מקובץ CSV (ייצוא תשובות מ-Google Sheets)</p>
+    </header>
+
+    <section class="panel">
+      <h2>1. טעינת הקובץ</h2>
+      <div class="drop" id="drop">
+        <input type="file" id="f-file" accept=".csv,text/csv">
+        לחצו לבחירת קובץ CSV — או גררו לכאן
+      </div>
+      <textarea id="f-paste" placeholder="...או הדביקו כאן את תוכן קובץ ה-CSV"></textarea>
+      <div class="actions">
+        <button id="b-sample" class="btn ghost small">טען נתוני דוגמה</button>
+      </div>
+      <div id="status"></div>
+    </section>
+
+    <section class="panel" id="carousel-panel" hidden>
+      <h2>2. כרטיסים</h2>
+      <div class="car">
+        <div class="crow">
+          <button id="b-prev" class="navbtn" disabled>▶ הקודם</button>
+          <div id="counter" class="counter"></div>
+          <button id="b-next" class="navbtn" disabled>הבא ◀</button>
+        </div>
+        <pre id="card" class="card" dir="rtl"></pre>
+      </div>
+      <div class="actions">
+        <button id="b-copy1" class="btn">העתק כרטיס נוכחי</button>
+        <button id="b-copyall" class="btn ghost">העתק את כל הכרטיסים</button>
+        <button id="b-download" class="btn ghost">הורד קובץ txt</button>
+      </div>
+      <div class="kbd">מקלדת: ◀ חץ שמאלה = הבא, חץ ימינה = הקודם · C = העתקת הכרטיס הנוכחי</div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="../app.js"></script>
+  <script>
+    (function () {
+      var T = window.Tools;
+      var cards = [];
+      var idx = 0;
+
+      var fileEl = document.getElementById('f-file');
+      var dropEl = document.getElementById('drop');
+      var pasteEl = document.getElementById('f-paste');
+      var statusEl = document.getElementById('status');
+      var panelEl = document.getElementById('carousel-panel');
+      var cardEl = document.getElementById('card');
+      var counterEl = document.getElementById('counter');
+      var prevBtn = document.getElementById('b-prev');
+      var nextBtn = document.getElementById('b-next');
+
+      function loadCsv(text) {
+        syncPasteDir();
+        var res = T.parseAll(text);
+        cards = res.cards;
+        idx = 0;
+        var html = '';
+        if (!cards.length) {
+          html = '<span class="err">לא נמצאו כרטיסים. בדקו שזהו קובץ הייצוא של Google Sheets.</span>';
+        } else {
+          html = '<span class="ok">' + cards.length + ' כרטיסים נוצרו</span>';
+          if (res.skipped) html += ' · <span class="warn">' + res.skipped + ' שורות דולגו (ללא שם)</span>';
+          if (res.unknown.length) html += '<br><span class="warn">עמודות שלא זוהו: ' + res.unknown.join(', ') + '</span>';
+        }
+        statusEl.innerHTML = html;
+        panelEl.hidden = cards.length === 0;
+        if (cards.length) render();
+      }
+
+      function render() {
+        cardEl.textContent = cards[idx];
+        counterEl.textContent = (idx + 1) + ' / ' + cards.length;
+        prevBtn.disabled = idx === 0;
+        nextBtn.disabled = idx === cards.length - 1;
+      }
+
+      function prev() { if (idx > 0) { idx--; render(); } }
+      function next() { if (idx < cards.length - 1) { idx++; render(); } }
+
+      // file input + drag&drop
+      dropEl.addEventListener('click', function () { fileEl.click(); });
+      dropEl.addEventListener('dragover', function (e) { e.preventDefault(); dropEl.classList.add('over'); });
+      dropEl.addEventListener('dragleave', function () { dropEl.classList.remove('over'); });
+      dropEl.addEventListener('drop', function (e) {
+        e.preventDefault();
+        dropEl.classList.remove('over');
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) readFile(f);
+      });
+      fileEl.addEventListener('change', function () { if (fileEl.files[0]) readFile(fileEl.files[0]); });
+      function readFile(f) {
+        var r = new FileReader();
+        r.onload = function () { loadCsv(String(r.result)); };
+        r.readAsText(f, 'utf-8');
+      }
+
+      // paste
+      pasteEl.addEventListener('input', function () {
+        syncPasteDir();
+        var v = pasteEl.value.trim();
+        if (v.indexOf(',') !== -1 || v.indexOf('\n') !== -1) loadCsv(v);
+      });
+      // placeholder renders RTL while empty; pasted CSV content stays LTR
+      function syncPasteDir() { pasteEl.setAttribute('dir', pasteEl.value.trim() === '' ? 'rtl' : 'ltr'); }
+      syncPasteDir();
+
+      // sample
+      document.getElementById('b-sample').addEventListener('click', function () {
+        pasteEl.value = T.SAMPLE_CSV;
+        loadCsv(T.SAMPLE_CSV);
+      });
+
+      // carousel controls
+      prevBtn.addEventListener('click', prev);
+      nextBtn.addEventListener('click', next);
+
+      // keyboard: RTL — left arrow = next, right arrow = prev; c = copy current card
+      window.addEventListener('keydown', function (e) {
+        if (!cards.length) return;
+        var tag = (document.activeElement || {}).tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+        if (e.key === 'ArrowLeft') { next(); e.preventDefault(); }
+        else if (e.key === 'ArrowRight') { prev(); e.preventDefault(); }
+        else if (e.key === 'c' || e.key === 'C' || e.key === 'ב') {
+          T.copyText(cards[idx]).then(function (ok) {
+            T.showToast(ok ? '✓ הכרטיס הועתק!' : 'לא ניתן היה להעתיק', !ok);
+          });
+        }
+      });
+
+      // actions
+      document.getElementById('b-copy1').addEventListener('click', function () {
+        if (!cards.length) return;
+        T.copyText(cards[idx]).then(function (ok) {
+          T.showToast(ok ? '✓ הכרטיס הועתק!' : 'לא ניתן היה להעתיק', !ok);
+        });
+      });
+      document.getElementById('b-copyall').addEventListener('click', function () {
+        if (!cards.length) return;
+        T.copyText(T.joinCards(cards)).then(function (ok) {
+          T.showToast(ok ? '✓ כל ' + cards.length + ' הכרטיסים הועתקו!' : 'לא ניתן היה להעתיק', !ok);
+        });
+      });
+      document.getElementById('b-download').addEventListener('click', function () {
+        if (!cards.length) return;
+        var blob = new Blob([T.joinCards(cards) + '\n'], { type: 'text/plain;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'cards.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      });
+    })();
+  </script>
+</body>
+</html>

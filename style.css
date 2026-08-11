@@ -1,0 +1,203 @@
+/* ===== מיזם שידוכים — כלים =====
+   Same look & feel as the veerastich landing page: hero photo, white wash, Rubik, blue accents. */
+
+@import url('fonts/fonts.css');
+
+:root {
+  --accent: #2563a8;
+  --accent-dark: #1a3a60;
+  --accent-soft: #e8f4fd;
+  --wa: #25d366;
+  --ink: #1a3a60;
+  --muted: #5b7290;
+  --line: #dbe6f0;
+  --panel: #ffffff;
+  --shadow: 0 8px 30px rgba(26, 58, 96, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+html { direction: rtl; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  background: #ffffff;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+/* background: hero photo + translucent white wash (same as the landing page) */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: url('media/hero-bg.jpg') center / cover no-repeat;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.62) 60%, rgba(255, 255, 255, 0.75));
+}
+.wrap { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; padding: 40px 20px 80px; }
+
+.brand { text-align: center; margin-bottom: 28px; }
+.brand h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+.brand .sub { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+
+.panel {
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 28px;
+  margin-bottom: 22px;
+}
+.panel h2 { margin: 0 0 16px; font-size: 18px; color: var(--accent-dark); }
+
+label.field { display: block; margin-bottom: 16px; font-weight: 500; font-size: 15px; }
+label.field input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: #fbfdff;
+}
+label.field input:focus { outline: 2px solid rgba(37, 99, 168, 0.35); border-color: var(--accent); }
+.hint { color: #c0392b; font-size: 13px; margin: -8px 0 12px; display: none; }
+.hint.show { display: block; }
+
+.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+/* placeholders render RTL even on LTR fields (phone, CSV paste, link out).
+   Chrome ignores direction on ::placeholder — the dir attribute is toggled in JS. */
+input::placeholder, textarea::placeholder { direction: rtl; text-align: right; }
+input[dir='ltr']::placeholder { text-align: right; }
+/* phone input: RTL field for the Hebrew placeholder, but the typed number stays LTR */
+input[dir='rtl'] { unicode-bidi: plaintext; }
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 24px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  transition: background 0.15s;
+}
+.btn:hover { background: #1e5492; }
+.btn:disabled { background: #b9c9da; cursor: default; }
+.btn.ghost { background: var(--accent-soft); color: var(--accent); }
+.btn.ghost:hover { background: #d9ecfa; }
+.btn.small { padding: 8px 16px; font-size: 14px; }
+
+.linkout {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #fbfdff;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* toast */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f9d55;
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(31, 157, 85, 0.4);
+  z-index: 50;
+}
+.toast.err { background: #c0392b; box-shadow: 0 6px 20px rgba(192, 57, 43, 0.4); }
+
+/* page 2: file / paste / status */
+.drop {
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  color: var(--muted);
+  margin-bottom: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: #f6faff; }
+.drop input[type='file'] { display: none; }
+textarea#f-paste {
+  width: 100%;
+  min-height: 110px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  direction: ltr;
+  text-align: left;
+  color: var(--ink);
+  background: #fbfdff;
+  resize: vertical;
+}
+#status { margin-top: 12px; font-size: 14px; color: var(--muted); }
+#status .ok { color: #1f9d55; font-weight: 500; }
+#status .warn { color: #b9770e; }
+#status .err { color: #c0392b; }
+
+/* carousel */
+.car { display: flex; flex-direction: column; gap: 16px; }
+.crow { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.counter { flex: 0 0 auto; text-align: center; font-size: 15px; font-weight: 500; color: var(--muted); min-width: 90px; }
+.navbtn {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  min-width: 96px;
+}
+.navbtn:hover:not(:disabled) { background: var(--accent-soft); }
+.navbtn:disabled { opacity: 0.35; cursor: default; }
+.card {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f5f9fd;
+  border: none;
+  border-radius: 12px;
+  padding: 22px 26px;
+  box-shadow: 0 4px 22px rgba(26, 58, 96, 0.09);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.7;
+  max-height: 62vh;
+  overflow: auto;
+  color: var(--ink);
+}
+
+.kbd { font-size: 12px; color: var(--muted); margin-top: 10px; text-align: center; }

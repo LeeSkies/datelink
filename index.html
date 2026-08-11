@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>מיזם שידוכים — יצירת קישור אישי</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="overlay"></div>
+
+  <main class="wrap">
+    <header class="brand">
+      <h1>מיזם שידוכים</h1>
+      <p class="sub">בשם ה' נעשה ונצליח — יצירת קישור אישי לטופס ההרשמה</p>
+    </header>
+
+    <section class="panel">
+      <label class="field">שם מלא
+        <input id="f-name" type="text" autocomplete="name" placeholder="לדוגמה: אבי ישראלי">
+      </label>
+      <div class="hint" id="hint-name">יש להזין שם מלא</div>
+
+      <label class="field">מספר פלאפון
+        <input id="f-phone" type="tel" autocomplete="tel" dir="rtl" placeholder="לדוגמה: 050-1234567">
+      </label>
+      <div class="hint" id="hint-phone">יש להזין מספר פלאפון תקין (לפחות 9 ספרות)</div>
+
+      <div class="actions">
+        <button id="b-copy" class="btn">העתק קישור</button>
+      </div>
+
+      <input id="f-link" class="linkout" readonly dir="ltr" placeholder="הקישור יופיע כאן אחרי לחיצה על 'העתק קישור'...">
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+  <script>
+    (function () {
+      var T = window.Tools;
+      var nameEl = document.getElementById('f-name');
+      var phoneEl = document.getElementById('f-phone');
+      var linkEl = document.getElementById('f-link');
+
+      function validate() {
+        var nameOk = nameEl.value.trim().length >= 2;
+        var digits = (phoneEl.value || '').replace(/\D/g, '');
+        var phoneOk = digits.length >= 9;
+        document.getElementById('hint-name').classList.toggle('show', !nameOk && nameEl.value.trim() !== '');
+        document.getElementById('hint-phone').classList.toggle('show', !phoneOk && phoneEl.value.trim() !== '');
+        if (!nameOk) { document.getElementById('hint-name').classList.add('show'); nameEl.focus(); return null; }
+        if (!phoneOk) { document.getElementById('hint-phone').classList.add('show'); phoneEl.focus(); return null; }
+        return T.buildFormLink(nameEl.value, phoneEl.value);
+      }
+
+      document.getElementById('b-copy').addEventListener('click', function () {
+        var url = validate();
+        if (!url) return;
+        linkEl.value = url;
+        T.copyText(url).then(function (ok) {
+          T.showToast(ok ? '✓ הקישור הועתק!' : 'הקישור מוכן — העתק אותו מהתיבה למטה', !ok);
+        });
+      });
+
+      [nameEl, phoneEl].forEach(function (el) {
+        el.addEventListener('input', function () {
+          document.getElementById('hint-name').classList.remove('show');
+          document.getElementById('hint-phone').classList.remove('show');
+        });
+      });
+
+      // placeholder renders RTL while empty; URL value stays LTR
+      function syncLinkDir() { linkEl.setAttribute('dir', linkEl.value ? 'ltr' : 'rtl'); }
+      linkEl.setAttribute('dir', 'rtl');
+      document.getElementById('b-copy').addEventListener('click', syncLinkDir);
+    })();
+  </script>
+</body>
+</html>
