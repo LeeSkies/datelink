@@ -90,7 +90,8 @@
     about: ['קצת עלי', 'קצת עליי', 'על עצמי', 'קצת על עצמי'],
     looking: ['מה אני מחפש+ טווח גילאים', 'מה אני מחפש + טווח גילאים', 'מה אני מחפש וטווח גילאים', 'מה אני מחפש'],
     agerange: ['טווח גילאים', 'טווח הגילאים'],
-    phone: ['מספר פלאפון לברורים ויצירת קשר', 'מספר טלפון לברורים ויצירת קשר', 'מספר פלאפון', 'טלפון']
+    phone: ['מספר פלאפון לברורים ויצירת קשר', 'מספר טלפון לברורים ויצירת קשר', 'מספר פלאפון', 'טלפון'],
+    personal: ['מספר טלפון אישי', 'מספר פלאפון אישי']
   };
 
   /* columns that exist in the responses sheet but must NOT appear in cards */
@@ -109,6 +110,14 @@
     keys.forEach(function (k) {
       normAliases[k] = HEADER_ALIASES[k].map(normHeader).sort(function (a, b) { return b.length - a.length; });
     });
+    // flat (field, alias) list, longest alias first — so the most specific
+    // field wins when a header contains several aliases (e.g. the personal-phone
+    // header contains both "מספר טלפון אישי" and the generic "טלפון")
+    var flatAliases = [];
+    keys.forEach(function (k) {
+      normAliases[k].forEach(function (a) { flatAliases.push([k, a]); });
+    });
+    flatAliases.sort(function (x, y) { return y[1].length - x[1].length; });
 
     function exactMatch(nh) {
       var matched = null;
@@ -123,13 +132,11 @@
 
     function matchAliases(nh) {
       var matched = exactMatch(nh);
-      if (!matched) { // fallback: long alias contained in the header
-        keys.forEach(function (k) {
-          if (matched) return;
-          normAliases[k].forEach(function (a) {
-            if (!matched && a.length >= 4 && nh.indexOf(a) !== -1) matched = k;
-          });
-        });
+      if (!matched) { // fallback: long alias contained in the header (longest first)
+        for (var f = 0; f < flatAliases.length && !matched; f++) {
+          var a = flatAliases[f][1];
+          if (a.length >= 4 && nh.indexOf(a) !== -1) matched = flatAliases[f][0];
+        }
       }
       return matched;
     }
@@ -257,8 +264,10 @@
   }
 
   /* referees are keyed by the REF phone (last field); a referee's card count is
-     the number of DISTINCT card phone numbers (the candidate's own phone) —
-     the same candidate submitted twice counts once. Names are display-only. */
+     the number of DISTINCT card identities — keyed by the card's PERSONAL phone
+     (מספר טלפון אישי, unique per candidate), falling back to the contact phone,
+     then to the row itself. The same candidate submitted twice counts once.
+     Names are display-only. */
   function refereeStats(cards) {
     var byPhone = {};
     var order = [];
@@ -268,15 +277,15 @@
       if (!byPhone[p]) { byPhone[p] = { name: c.ref.name || '', phones: {}, count: 0, display: c.ref.phone }; order.push(p); }
       var r = byPhone[p];
       if (!r.name && c.ref.name) r.name = c.ref.name;
-      var key = c.phone ? normPhone(c.phone) : '__row' + i; // cards without a phone count individually
+      var key = normPhone(c.personal) || normPhone(c.phone) || '__row' + i; // cards without any phone count individually
       if (!(key in r.phones)) { r.phones[key] = true; r.count++; }
     });
     return order.map(function (p) { var r = byPhone[p]; return { phone: r.display, name: r.name, count: r.count }; });
   }
 
-  /* names of referees with at least minCards and at most maxCards cards
-     (maxCards empty = no upper limit; most cards first) */
-  function filterReferees(cards, minCards, maxCards) {
+  /* referees with at least minCards and at most maxCards cards, sorted
+     (maxCards empty = no upper limit; most cards first, then Hebrew name) */
+  function filterRefereeGroups(cards, minCards, maxCards) {
     minCards = Math.max(1, parseInt(minCards, 10) || 1);
     var max = maxCards === '' || maxCards == null ? Infinity : Math.max(0, parseInt(maxCards, 10) || 0);
     return refereeStats(cards)
@@ -284,7 +293,12 @@
       .sort(function (a, b) {
         return b.count - a.count || String(a.name).localeCompare(String(b.name), 'he');
       })
-      .map(function (r) { return r.name; });
+      .map(function (r) { return { name: r.name, count: r.count }; });
+  }
+
+  /* names only (the roulette needs just the names) */
+  function filterReferees(cards, minCards, maxCards) {
+    return filterRefereeGroups(cards, minCards, maxCards).map(function (r) { return r.name; });
   }
 
   /* ===== full pipeline: CSV text -> { cards, skipped, unknown } ===== */
@@ -334,7 +348,7 @@
           var rp = clean(row[map.refPhoneCol]);
           if (rn || rp) ref = { name: rn, phone: rp };
         }
-        cards.push({ text: card, images: images, ref: ref, phone: rec.phone || '' });
+        cards.push({ text: card, images: images, ref: ref, phone: rec.phone || '', personal: rec.personal || '' });
       } else {
         skipped++;
       }
@@ -406,6 +420,7 @@
     exportAllText: exportAllText,
     refereeStats: refereeStats,
     filterReferees: filterReferees,
+    filterRefereeGroups: filterRefereeGroups,
     normPhone: normPhone,
     copyText: copyText,
     showToast: showToast,

@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>מיזם שידוכים — כרטיסים מקובץ CSV</title>
   <link rel="stylesheet" href="../style.css">
+  <style>
+    .roulette-overlay { position: fixed; inset: 0; z-index: 1000; background: #fff; }
+    .roulette-overlay[hidden] { display: none; }
+    #roulette-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  </style>
 </head>
 <body>
   <div class="bg"></div>
@@ -50,23 +55,26 @@
     </section>
 
     <section class="panel" id="filter-panel">
-      <h2>3. חיפוש וסינון</h2>
-      <div class="frow">
-        <label for="f-min">הצג מגישים עם לפחות</label>
-        <input type="number" id="f-min" min="1" value="1" step="1">
-        <label for="f-max">ועד</label>
-        <input type="number" id="f-max" min="1" value="" step="1">
-        <label for="f-max">כרטיסים</label>
-        <button id="b-filter" class="btn">סנן</button>
+      <h2>3. הגרלת מגישים</h2>
+      <div class="tabs" role="tablist">
+        <button id="tab-3" class="tab active" role="tab" data-label="3 כרטיסים ומטה">3 כרטיסים ומטה (0)</button>
+        <button id="tab-4" class="tab" role="tab" data-label="4 כרטיסים ומעלה">4 כרטיסים ומעלה (0)</button>
       </div>
-      <div id="ref-out"></div>
-      <div class="actions">
-        <button id="b-copy-refs" class="btn ghost" hidden>העתק רשימה</button>
+      <div id="group-out" hidden>
+        <div class="ref-head" id="group-head">אין מגישים בקבוצה</div>
+        <div id="group-list" dir="auto"></div>
+        <div class="actions">
+          <button id="b-to-roulette" class="btn spin-btn">להגרלה</button>
+        </div>
       </div>
     </section>
   </main>
 
   <div id="toast" class="toast" hidden></div>
+
+  <div id="roulette-overlay" class="roulette-overlay" hidden>
+    <iframe id="roulette-frame" src="../roulette/index.html?embed=1" title="גלגל הזיווגים"></iframe>
+  </div>
 
   <script src="../app.js"></script>
   <script>
@@ -110,6 +118,8 @@
         }
         statusEl.innerHTML = html;
         panelEl.hidden = cards.length === 0;
+        // default tab: 3 ומטה, names shown automatically
+        showGroup(1, 3, '3 כרטיסים ומטה', 'tab-3');
         if (cards.length) render();
       }
 
@@ -218,37 +228,64 @@
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       });
 
-      // ===== section 3: search & filter (referees by card count) =====
-      var refOutEl = document.getElementById('ref-out');
-      var copyRefsBtn = document.getElementById('b-copy-refs');
-      function applyFilter() {
-        var min = parseInt(document.getElementById('f-min').value, 10) || 1;
-        var max = document.getElementById('f-max').value;
-        var maxLabel = max === '' ? '' : ' ועד ' + max;
-        if (!cards.length) {
-          refOutEl.innerHTML = '<span class="warn">טענו קובץ CSV קודם (שלב 1)</span>';
-          copyRefsBtn.hidden = true;
-          return;
-        }
-        var names = T.filterReferees(cards, min, max);
-        if (!names.length) {
-          refOutEl.innerHTML = '<span class="warn">אין מגישים עם ' + min + ' כרטיסים ומעלה' + maxLabel + '</span>';
-          copyRefsBtn.hidden = true;
-          return;
-        }
-        refOutEl.innerHTML =
-          '<div class="ref-head">מגישים עם ' + min + '+ כרטיסים' + maxLabel + ' (' + names.length + '):</div>' +
-          '<pre id="ref-list" dir="auto">' + names.join('\n') + '</pre>';
-        copyRefsBtn.hidden = false;
+      // ===== section 3: roulette tabs =====
+      var groupOut = document.getElementById('group-out');
+      var groupHead = document.getElementById('group-head');
+      var groupList = document.getElementById('group-list');
+      var toRouletteBtn = document.getElementById('b-to-roulette');
+      var pendingGroup = null;
+      var overlayEl = document.getElementById('roulette-overlay');
+      var frameEl = document.getElementById('roulette-frame');
+
+      // hand the names to the wheel inside the iframe — postMessage works even
+      // when file:// pages are isolated into unique origins (DevEdition)
+      function sendNamesToWheel() {
+        if (!pendingGroup) return;
+        frameEl.contentWindow.postMessage({ type: 'datelink-names', names: pendingGroup.names }, '*');
       }
-      document.getElementById('b-filter').addEventListener('click', applyFilter);
-      copyRefsBtn.addEventListener('click', function () {
-        var list = document.getElementById('ref-list');
-        if (!list) return;
-        T.copyText(list.textContent).then(function (ok) {
-          T.showToast(ok ? '✓ הרשימה הועתקה!' : 'לא ניתן היה להעתיק', !ok);
-        });
+      window.addEventListener('message', function (ev) {
+        var d = ev.data;
+        if (d && d.type === 'datelink-ready') sendNamesToWheel(); // the wheel just loaded
+        if (d && d.type === 'datelink-close') overlayEl.hidden = true; // ESC pressed inside the wheel
       });
+
+      function openRoulette() {
+        if (!pendingGroup) return;
+        // courtesy write for direct /roulette opens (works where file:// shares one origin)
+        try {
+          localStorage.setItem('datelink-roulette-names', JSON.stringify(pendingGroup.names));
+        } catch (e) {}
+        overlayEl.hidden = false;
+        sendNamesToWheel();
+      }
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !overlayEl.hidden) overlayEl.hidden = true;
+      });
+
+      var TAB_RANGES = { 'tab-3': [1, 3], 'tab-4': [4, ''] };
+
+      function refreshTabs(activeTabId) {
+        document.querySelectorAll('.tab').forEach(function (b) {
+          var range = TAB_RANGES[b.id];
+          var count = T.filterReferees(cards, range[0], range[1]).length;
+          b.textContent = b.dataset.label + ' (' + count + ')';
+          b.classList.toggle('active', b.id === activeTabId);
+        });
+      }
+
+      function showGroup(min, max, label, tabId) {
+        refreshTabs(tabId);
+        var groups = T.filterRefereeGroups(cards, min, max);
+        pendingGroup = groups.length ? { names: groups.map(function (g) { return g.name; }), label: label } : null;
+        groupList.textContent = groups.map(function (g) { return g.name + ' (' + g.count + ')'; }).join(', ');
+        groupList.hidden = !groups.length;
+        groupHead.hidden = groups.length; // 'אין מגישים בקבוצה' only when empty
+        toRouletteBtn.disabled = !groups.length;
+        groupOut.hidden = !cards.length;
+      }
+      document.getElementById('tab-3').addEventListener('click', function () { showGroup(1, 3, '3 כרטיסים ומטה', 'tab-3'); });
+      document.getElementById('tab-4').addEventListener('click', function () { showGroup(4, '', '4 כרטיסים ומעלה', 'tab-4'); });
+      toRouletteBtn.addEventListener('click', openRoulette);
     })();
   </script>
 </body>

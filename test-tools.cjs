@@ -26,7 +26,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000).unref();
 
   const chrome = spawn('google-chrome', [
-    '--headless=new', '--disable-gpu', '--no-sandbox',
+    '--headless=new', '--disable-gpu', '--no-sandbox', '--window-size=1440,900',
     '--allow-file-access-from-files',
     `--remote-debugging-port=${PORT}`, BASE + 'index.html',
   ], { stdio: 'ignore' });
@@ -126,6 +126,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await sleepMs(1000);
   check('page2 RTL', await evalJs(`document.documentElement.dir`) === 'rtl');
   check('paste rtl when empty', await evalJs(`document.getElementById('f-paste').getAttribute('dir')`) === 'rtl');
+  check('tabs show (0) by default', await evalJs(`document.getElementById('tab-3').textContent === '3 כרטיסים ומטה (0)' && document.getElementById('tab-4').textContent === '4 כרטיסים ומעלה (0)' && document.getElementById('group-out').hidden`));
 
   console.log('STEP: sample');
   // load sample
@@ -256,12 +257,12 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   const fmtCsv = [
     'שם + שם משפחה:,גיל:,מה אני מחפש+ טווח גילאים:,מספר פלאפון לברורים ויצירת קשר:,מספר פלאפון אישי שלך: (לא יפורסם ),צירוף תמונה עדכנית:,הגעתי דרך:,שם מלא:,מספר פלאפון:,חותמת זמן',
     'אבי,25,בחורה רצינית,050-1,050-2,,קבוצה,מיכל,050-9,2026-01-01 10:00:00',
-    'בועז,27,בחורה טובה,0501,050-4,,אתר,מיכל,+972509,2026-01-02 10:00:00',
-    'גיל,28,מחפש שידוך,050-5,050-6,,קבוצה,מיכל,0509,2026-01-03 10:00:00'
+    'בועז,27,בחורה טובה,0501,0502,,אתר,מיכל,+972509,2026-01-02 10:00:00',
+    'גיל,28,מחפש שידוך,050-5,050-5,,קבוצה,מיכל,0509,2026-01-03 10:00:00'
   ].join('\n');
   check('formatted ref variants = one referee', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards).length`) === 1);
   check('first display phone kept', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards)[0].phone`) === '050-9');
-  check('formatted card phone deduped', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards)[0].count`) === 2);
+  check('formatted personal variants collapse into one card', await evalJs(`Tools.refereeStats(Tools.parseAll(${JSON.stringify(fmtCsv)}).cards)[0].count`) === 2);
   // unit: referee stats + dedup by personal number
   check('sample refs extracted', await evalJs(`JSON.stringify(Tools.parseAll(Tools.SAMPLE_CSV).cards[0].ref)`) === '{"name":"אבי ישראלי","phone":"050-3333333"}');
   check('filter 1+ -> 3 names', await evalJs(`Tools.filterReferees(Tools.parseAll(Tools.SAMPLE_CSV).cards, 1).join(',')`) === 'אבי ישראלי,יצחק כהן,שמעון לוי');
@@ -270,37 +271,123 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   const refCsv = [
     'שם + שם משפחה:,גיל:,מה אני מחפש+ טווח גילאים:,מספר פלאפון לברורים ויצירת קשר:,מספר פלאפון אישי שלך: (לא יפורסם ),צירוף תמונה עדכנית:,הגעתי דרך:,שם מלא:,מספר פלאפון:,חותמת זמן',
     'אבי,25,בחורה רצינית,050-1,050-2,,קבוצה,מיכל,050-9,2026-01-01 10:00:00',
-    'בועז,27,בחורה טובה,050-1,050-4,,אתר,מיכל,050-9,2026-01-02 10:00:00', // same candidate phone -> deduped
+    'בועז,27,בחורה טובה,050-1,050-2,,אתר,מיכל,050-9,2026-01-02 10:00:00', // same PERSONAL phone -> same card, deduped
     'גיל,28,מחפש שידוך,050-5,050-6,,קבוצה,מיכל,050-9,2026-01-03 10:00:00',
-    'דוד,29,בחורה,050-7,050-2,,אתר,מיכל,050-8,2026-01-04 10:00:00' // same NAME, other ref phone -> separate referee
+    'דוד,29,בחורה,050-7,050-2,,אתר,מיכל,050-8,2026-01-04 10:00:00' // same personal, other ref phone -> separate referee
   ].join('\n');
   await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(refCsv)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
   await sleepMs(300);
   check('card phone attached', await evalJs(`Tools.parseAll(document.getElementById('f-paste').value).cards[0].phone`) === '050-1');
+  check('card personal phone attached', await evalJs(`Tools.parseAll(document.getElementById('f-paste').value).cards[0].personal`) === '050-2');
   check('same candidate twice counts once', await evalJs(`Tools.refereeStats(Tools.parseAll(document.getElementById('f-paste').value).cards)[0].count`) === 2);
   check('same name different ref phone = separate referee', await evalJs(`Tools.filterReferees(Tools.parseAll(document.getElementById('f-paste').value).cards, 1).filter(n => n === 'מיכל').length`) === 2);
-  await evalJs(`document.getElementById('f-min').value = '2'; document.getElementById('b-filter').click();`);
+
+  console.log('STEP: roulette groups');
+  // referees with 2..5 cards: א=2, ב=3, ג=4, ד=5
+  const GROUP_HEADER = 'שם + שם משפחה:,גיל:,מה אני מחפש+ טווח גילאים:,מספר פלאפון לברורים ויצירת קשר:,מספר פלאפון אישי שלך: (לא יפורסם ),צירוף תמונה עדכנית:,הגעתי דרך:,שם מלא:,מספר פלאפון:,חותמת זמן';
+  function groupCsv() {
+    const refs = [['א', '050-1'], ['ב', '050-2'], ['ג', '050-3'], ['ד', '050-4']];
+    const lines = [GROUP_HEADER];
+    let row = 1;
+    refs.forEach(([nm, refPhone], ri) => {
+      for (let k = 0; k < ri + 2; k++) {
+        lines.push(`מועמד${ri}-${k},25,בחורה רצינית,050-${10 + row++},050-${50 + row++},,קבוצה,${nm},${refPhone},2026-01-01 10:00:00`);
+      }
+    });
+    return lines.join('\n');
+  }
+  const gc = groupCsv();
+  check('group 3 ומטה = ב,א (count desc)', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 1, 3).join(',')`) === 'ב,א');
+  check('group 4 ומעלה = ד,ג', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 4, '').join(',')`) === 'ד,ג');
+  // browser: default tab-3 shows its names automatically after paste
+  await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(gc)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
+  await sleepMs(300);
+  check('default tab-3 active, names shown (no click)', await evalJs(`document.getElementById('tab-3').classList.contains('active') && document.getElementById('tab-3').textContent === '3 כרטיסים ומטה (2)' && !document.getElementById('group-out').hidden && document.getElementById('group-list').textContent === 'ב (3), א (2)'`));
+  check('head line hidden when names exist', await evalJs(`document.getElementById('group-head').hidden`));
+  // switch to tab-4
+  await evalJs(`document.getElementById('tab-4').click()`);
   await sleepMs(200);
-  check('filter 2+ shows only מיכל', await evalJs(`document.getElementById('ref-list').textContent`) === 'מיכל');
-  // range: max filter (optional upper bound)
-  check('max=1 keeps only 1-card refs', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 1, 1).length`) === 1);
-  check('range 1..1 on sample keeps all', await evalJs(`Tools.filterReferees(Tools.parseAll(Tools.SAMPLE_CSV).cards, 1, 1).length`) === 3);
-  check('max empty = no limit', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 1, '').filter(n => n === 'מיכל').length`) === 2);
-  check('exact 2 cards (2..2)', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 2, 2).join()`) === 'מיכל');
-  check('impossible range empty', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(refCsv)}).cards, 3, 1).length`) === 0);
-  await evalJs(`document.getElementById('f-max').value = '1'; document.getElementById('b-filter').click();`);
+  check('tab-4 (2) active with 4+ names', await evalJs(`document.getElementById('tab-4').classList.contains('active') && document.getElementById('tab-4').textContent === '4 כרטיסים ומעלה (2)' && document.getElementById('group-list').textContent === 'ד (5), ג (4)'`));
+  check('tab-3 also shows its count', await evalJs(`document.getElementById('tab-3').textContent === '3 כרטיסים ומטה (2)'`));
+  check('tab-3 no longer active', await evalJs(`!document.getElementById('tab-3').classList.contains('active')`));
+  // back to tab-3 and open the roulette as a full-page overlay
+  await evalJs(`document.getElementById('tab-3').click()`);
   await sleepMs(200);
-  check('max=1 shows warning', await evalJs(`document.getElementById('ref-out').textContent.includes('אין מגישים')`));
-  await evalJs(`document.getElementById('f-max').value = ''; document.getElementById('b-filter').click();`);
+  await evalJs(`document.getElementById('b-to-roulette').click()`);
+  await sleepMs(900);
+  check('overlay opened over the ui', await evalJs(`!document.getElementById('roulette-overlay').hidden`));
+  check('iframe src has no names', await evalJs(`(() => { const u = new URL(document.getElementById('roulette-frame').src); return u.searchParams.get('names') === null && u.searchParams.get('embed') === '1'; })()`));
+  check('names arrived in the wheel (postMessage)', await evalJs(`(() => { const d = document.getElementById('roulette-frame').contentDocument; return d && d.getElementById('spinBtn') && !d.getElementById('spinBtn').disabled; })()`));
+  check('side names list hidden inside frame', await evalJs(`(() => { const d = document.getElementById('roulette-frame').contentDocument; const s = d.getElementById('sideNames'); return s && s.hidden; })()`));
+  check('galgal canvas wheel inside frame', await evalJs(`!!document.getElementById('roulette-frame').contentDocument.getElementById('wheel')`));
+  check('orbit rings inside frame', await evalJs(`document.getElementById('roulette-frame').contentDocument.querySelectorAll('.orbit-ring').length`) === 3);
+  check('no control panel inside frame', await evalJs(`!document.getElementById('roulette-frame').contentDocument.querySelector('.panel')`));
+  check('wheel footer hidden when embedded', await evalJs(`document.getElementById('roulette-frame').contentDocument.querySelector('footer').hidden`));
+  // ESC closes the overlay, reopen works
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+  await sleepMs(150);
+  check('ESC closes overlay', await evalJs(`document.getElementById('roulette-overlay').hidden`));
+  await evalJs(`document.getElementById('b-to-roulette').click()`);
+  await sleepMs(150);
+  check('reopens after ESC', await evalJs(`!document.getElementById('roulette-overlay').hidden`));
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+  await sleepMs(150);
+  check('ESC closes again', await evalJs(`document.getElementById('roulette-overlay').hidden`));
+  // tab-4 has 9 names — reopen passes them to the already-loaded frame
+  await evalJs(`document.getElementById('tab-4').click()`);
+  await sleepMs(150);
+  await evalJs(`document.getElementById('b-to-roulette').click()`);
+  await sleepMs(700);
+  check('reopen re-sends the new group to the wheel', await evalJs(`(() => { const d = document.getElementById('roulette-frame').contentDocument; return !d.getElementById('spinBtn').disabled; })()`));
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+  // empty 4+ group -> inline message, no navigation (refCsv has only 1-2 card referees)
+  await send('Page.navigate', { url: BASE + 'export/index.html' });
+  await sleepMs(1000);
+  await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(refCsv)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
+  await sleepMs(300);
+  check('tab-3 auto again with refCsv', await evalJs(`document.getElementById('tab-3').classList.contains('active') && document.getElementById('tab-3').textContent === '3 כרטיסים ומטה (2)' && document.getElementById('group-list').textContent === 'מיכל (2), מיכל (1)'`));
+  await evalJs(`document.getElementById('tab-4').click()`);
   await sleepMs(200);
-  check('clearing max restores list', await evalJs(`document.getElementById('ref-list').textContent`) === 'מיכל');
-  check('copy list button visible', await evalJs(`!document.getElementById('b-copy-refs').hidden`));
-  await evalJs(`document.getElementById('b-copy-refs').click()`);
-  await sleepMs(200);
-  check('copy list toast', await evalJs(`document.getElementById('toast').hidden`) === false);
-  await evalJs(`document.getElementById('f-min').value = '3'; document.getElementById('b-filter').click();`);
-  await sleepMs(200);
-  check('filter 3+ shows warning', await evalJs(`document.getElementById('ref-out').textContent.includes('אין מגישים')`) && await evalJs(`document.getElementById('b-copy-refs').hidden`));
+  check('tab-4 shows (0)', await evalJs(`document.getElementById('tab-4').textContent === '4 כרטיסים ומעלה (0)'`));
+  check('empty group inline message', await evalJs(`!document.getElementById('group-head').hidden && document.getElementById('group-head').textContent.includes('אין מגישים')`));
+  check('empty group hides list + disables go', await evalJs(`document.getElementById('group-list').hidden && document.getElementById('b-to-roulette').disabled`));
+  check('empty group stays on export', await evalJs(`location.pathname.includes('export')`));
+  // roulette (galgal wheel): fast spin picks a winner -> modal + confetti
+  // names arrive via localStorage (same channel as the export page) — no names in the URL
+  await evalJs(`localStorage.setItem('datelink-roulette-names', JSON.stringify(['ב', 'א']))`);
+  await send('Page.navigate', { url: `${BASE}roulette/index.html?fast=1` });
+  await sleepMs(1200);
+  check('ambient drift present', await evalJs(`document.querySelectorAll('.drift').length`) > 0);
+  check('spin enabled with 2 names', await evalJs(`!document.getElementById('spinBtn').disabled`));
+  check('side names list hidden (flag off)', await evalJs(`document.getElementById('sideNames').hidden`));
+  await evalJs(`document.getElementById('spinBtn').click()`);
+  await sleepMs(120);
+  check('side list faded while rolling', await evalJs(`document.body.classList.contains('rolling')`));
+  await sleepMs(2500);
+  check('side list back after halting', await evalJs(`!document.body.classList.contains('rolling')`));
+  const winner = await evalJs(`document.getElementById('winnerName').textContent`);
+  check('winner is one of the names', ['א', 'ב'].includes(winner), winner);
+  check('modal shown', await evalJs(`document.getElementById('modalOverlay').classList.contains('show')`));
+  check('confetti burst', await evalJs(`document.querySelectorAll('.confetti-piece').length`) > 0);
+  check('spin button back', await evalJs(`!document.getElementById('spinBtn').classList.contains('is-hidden')`));
+  // close modal, spin again (winners stay on the wheel)
+  await evalJs(`document.getElementById('modalClose').click()`);
+  await evalJs(`document.getElementById('spinBtn').click()`);
+  await sleepMs(2600);
+  check('re-spin works', ['א', 'ב'].includes(await evalJs(`document.getElementById('winnerName').textContent`)));
+  check('back link to export', await evalJs(`document.querySelector('footer a').getAttribute('href') === '../export/index.html'`));
+  // many names -> the list overflows the panel and scrolls
+  await evalJs(`localStorage.setItem('datelink-roulette-names', JSON.stringify(Array.from({ length: 30 }, (_, i) => 'שם ' + (i + 1))));`);
+  await send('Page.navigate', { url: `${BASE}roulette/index.html?fast=1` });
+  await sleepMs(1000);
+  check('stays hidden with 30 names', await evalJs(`document.getElementById('sideNames').hidden`));
+  // no names -> empty state, spin disabled (storage cleared so no fallback can kick in)
+  await send('Page.navigate', { url: BASE + 'export/index.html' });
+  await sleepMs(1000);
+  await evalJs(`sessionStorage.removeItem('datelink-roulette-names'); sessionStorage.removeItem('datelink-roulette-label'); localStorage.removeItem('datelink-roulette-names'); localStorage.removeItem('datelink-roulette-label');`);
+  await send('Page.navigate', { url: BASE + 'roulette/index.html?fast=1' });
+  await sleepMs(1000);
+  check('no names -> empty state', await evalJs(`document.getElementById('spinBtn').disabled`));
 
   // ===== no page errors =====
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | ').slice(0, 200));
