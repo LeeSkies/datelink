@@ -7,11 +7,23 @@
   'use strict';
 
   /* ===== configuration ===== */
-  var CONFIG = {
-    FORM_URL: 'https://docs.google.com/forms/d/e/1FAIpQLScFmbqLvxsIgdu0fqneZyuifsGFQ-wY00LB15CY4B4NRIHSbA/viewform',
-    ENTRY_NAME: 'entry.1659420434', // שם מלא
-    ENTRY_PHONE: 'entry.632618070'  // מספר פלאפון
+  /* two forms — same structure, separate responses (girls = original, boys =
+     the new one). The share flow prefills the REFEREE fields (שם מלא + מספר
+     פלאפון at the end of each form). */
+  var FORMS = {
+    girls: {
+      url: 'https://docs.google.com/forms/d/e/1FAIpQLScFmbqLvxsIgdu0fqneZyuifsGFQ-wY00LB15CY4B4NRIHSbA/viewform',
+      name: 'entry.1659420434', // שם מלא (מגיש)
+      phone: 'entry.632618070'  // מספר פלאפון (מגיש)
+    },
+    boys: {
+      url: 'https://docs.google.com/forms/d/e/1FAIpQLSdYrIxaJ9skefLmWb9z04qVt2K-UP4XiO1DdumDMbJ3PsguHQ/viewform',
+      name: 'entry.885956976', // שם מלא (מגיש)
+      phone: 'entry.488453562' // מספר טלפון (מגיש)
+    }
   };
+  var CONFIG = FORMS.girls; // kept for backward compatibility
+  function formOf(form) { return FORMS[form] || FORMS.girls; }
 
   /* ===== helpers ===== */
   function clean(v) { return String(v == null ? '' : v).replace(/\r/g, '').trim(); }
@@ -221,20 +233,22 @@
     ['phone', '☎️ מספר טלפון לברורים ויצירת קשר:']
   ];
 
-  /* build one card's txt from a record {name, age, ...}; null when no name */
+  /* build one card's txt from a record {name, age, ...}; null when no name.
+     Field names are wrapped in *asterisks* — bold in WhatsApp/Telegram/
+     most chat apps — the display layer turns them into <b> for the screen */
   function buildCard(rec) {
     var name = clean(rec.name);
     if (!name) return null;
     var sections = [];
     var inline = INLINE_FIELDS
-      .map(function (f) { var v = clean(rec[f[0]]); return v ? f[1] + ': ' + v : ''; })
+      .map(function (f) { var v = clean(rec[f[0]]); return v ? '*' + f[1] + '*: ' + v : ''; })
       .filter(Boolean);
     if (inline.length) sections.push(inline.join('\n'));
     BLOCK_FIELDS.forEach(function (f) {
       var v = clean(rec[f[0]]);
-      if (v) sections.push(f[1] + '\n' + v);
+      if (v) sections.push('*' + f[1] + '*\n' + v);
     });
-    return '✨ ' + name + ' ✨\n\n' + sections.join('\n\n');
+    return '*✨ ' + name + ' ✨*\n\n' + sections.join('\n\n');
   }
 
   /* join cards with exactly 3 blank lines between them */
@@ -299,7 +313,9 @@
   /* the message copied/shared from the landing page (kept in one place so the
      copy, system-share and WhatsApp paths stay identical) */
   function buildShareText(url) {
-    return 'מיזם שידוכים וארשתיך המיועד לבחורים במגזר הדתי לאומי תורני.\n\nכל הפרטים בקישור:\n' + url;
+    return '*מיזם השידוכים וְאֵרַשְׂתִּיךְ💍*\n' +
+      '*מיועד לבחורים מהמגזר הדתי־לאומי תורני.*\n\n' +
+      '*להצטרפות למיזם לחצו על הקישור:*\n' + url;
   }
 
   /* names only (the roulette needs just the names) */
@@ -363,10 +379,26 @@
   }
 
   /* ===== page 1: build the prefilled form link ===== */
-  function buildFormLink(name, phone) {
-    return CONFIG.FORM_URL + '?usp=pp_url&' +
-      CONFIG.ENTRY_NAME + '=' + encodeURIComponent(clean(name)) + '&' +
-      CONFIG.ENTRY_PHONE + '=' + encodeURIComponent(clean(phone));
+  function buildFormLink(name, phone, form) {
+    var f = formOf(form);
+    return f.url + '?usp=pp_url&' +
+      f.name + '=' + encodeURIComponent(clean(name)) + '&' +
+      f.phone + '=' + encodeURIComponent(clean(phone));
+  }
+
+  /* the short link we actually share: /sh?n=<name>&n=<number> (boys:
+     /sh/b?n=...) — a blank page that immediately redirects to the prefilled
+     form (baseUrl overridable for tests; defaults to the current page) */
+  function buildShareUrl(name, phone, baseUrl, form) {
+    baseUrl = baseUrl || (typeof location !== 'undefined' ? location.href : 'https://leeskies.github.io/datelink/index.html');
+    var file = /^file:/.test(baseUrl);
+    var dir = baseUrl.replace(/[^/]*$/, '');
+    // share/redirect pages live at the site root; pages inside /b/ or /sh/ are
+    // one level deeper — walk back to the root before appending the route
+    dir = dir.replace(/\/(?:b|sh)\/$/, '/');
+    var target = file ? dir + 'sh/index.html' : dir + 'sh';
+    if (formOf(form) === FORMS.boys) target = file ? dir + 'sh/b/index.html' : dir + 'sh/b';
+    return target + '?n=' + encodeURIComponent(clean(name)) + '&n=' + encodeURIComponent(clean(phone));
   }
 
   /* ===== clipboard (browser only; node returns false) ===== */
@@ -427,6 +459,7 @@
     refereeStats: refereeStats,
     filterReferees: filterReferees,
     filterRefereeGroups: filterRefereeGroups,
+    buildShareUrl: buildShareUrl,
     buildShareText: buildShareText,
     normPhone: normPhone,
     copyText: copyText,

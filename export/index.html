@@ -125,7 +125,11 @@
 
       function render() {
         var card = cards[idx];
-        cardEl.textContent = card.text;
+        // card text carries *label* markers (bold in chat apps) — turn them
+        // into real <b> on screen after HTML-escaping the values
+        cardEl.innerHTML = card.text
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/\*([^*]+)\*/g, '<b>$1</b>');
         imgsEl.innerHTML = '';
         card.images.forEach(function (id) {
           var div = document.createElement('div');

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>מעבר לטופס...</title>
+  <script src="../app.js"></script>
+</head>
+<body>
+  <!-- blank page: immediately redirects to the prefilled form (boys variant:
+       /sh/b — same file, form picked by pathname) -->
+  <script>
+    (function () {
+      var FORM = /\/b(?:\/|$)/.test(location.pathname) ? 'boys' : 'girls';
+      var p = new URLSearchParams(location.search);
+      var vals = p.getAll('n'); // first n = name, second n = number
+      var name = (vals[0] || '').trim();
+      var number = (vals[1] || '').trim();
+      if (name.length >= 2 && number.replace(/\D/g, '').length >= 9) {
+        location.replace(Tools.buildFormLink(name, number, FORM));
+      } else {
+        location.replace('../index.html'); // missing details -> back to the generator
+      }
+    })();
+  </script>
+</body>
+</html>

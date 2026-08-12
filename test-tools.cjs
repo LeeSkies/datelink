@@ -115,22 +115,34 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(200);
   const link = await evalJs(`document.getElementById('f-link').value`);
-  check('link prefilled', link.includes('entry.1659420434=%D7%90%D7%91%D7%99%20%D7%99%D7%A9%D7%A8%D7%90%D7%9C%D7%99') &&
-    link.includes('entry.632618070=050-1234567'), link.slice(-80));
+  check('link prefilled as short /sh link', link.includes('/sh/index.html?n=') && link.includes('%D7%90%D7%91%D7%99') && link.includes('050-1234567') && link.indexOf('entry.') === -1 && link.indexOf('docs.google.com') === -1, link.slice(-80));
   check('copy toast', await evalJs(`document.getElementById('toast').hidden`) === false);
   check('linkout ltr after copy', await evalJs(`document.getElementById('f-link').getAttribute('dir')`) === 'ltr');
 
+  // /sh redirect: valid details -> the prefilled form; missing -> back to the generator
+  await send('Page.navigate', { url: BASE + 'sh/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=' + encodeURIComponent('050-1234567') });
+  await sleepMs(1500);
+  const shTarget = await evalJs(`location.href`);
+  // headless Google may bounce to a sign-in URL, but the prefilled form link
+  // (with both entries) must be the destination either way
+  check('sh redirects to the prefilled form', shTarget.indexOf('viewform') !== -1 && shTarget.indexOf('entry.1659420434') !== -1 && shTarget.indexOf('entry.632618070') !== -1 && shTarget.indexOf('050-1234567') !== -1, shTarget.slice(0, 120));
+  await send('Page.navigate', { url: BASE + 'sh/index.html' });
+  await sleepMs(1000);
+  check('sh without details goes back to the generator', await evalJs(`location.href.includes('index.html') && !location.href.includes('docs.google.com')`), await evalJs(`location.href`));
+
   // share handlers: copy carries the full message; whatsapp opens wa.me with it;
-  // system share falls back to copying on desktop (no Web Share API)
+  // system share hides itself without the Web Share API
   check('share + whatsapp buttons present', await evalJs(`!!document.getElementById('b-share') && !!document.getElementById('b-whatsapp')`));
   check('icons render at full size', await evalJs(`(() => { const ss = [...document.querySelectorAll('.btn.icon-btn svg')].map(s => getComputedStyle(s)); return ss.length === 2 && ss.every(s => s.width === '20px' && s.height === '20px' && s.fill === 'rgb(255, 255, 255)'); })()`));
   check('icon buttons match the copy button height', await evalJs(`(() => { const h = document.getElementById('b-copy').getBoundingClientRect().height; return [...document.querySelectorAll('.btn.icon-btn')].filter(b => !b.hidden).every(b => Math.abs(b.getBoundingClientRect().height - h) < 1); })()`));
   check('icon buttons stay square (width = height)', await evalJs(`(() => { const r = [...document.querySelectorAll('.btn.icon-btn')].filter(b => !b.hidden).map(b => b.getBoundingClientRect()); return r.length > 0 && r.every(x => Math.abs(x.width - x.height) < 1); })()`));
+  // the sh redirect tests above left us on a fresh index page — fill it again
+  await evalJs(`(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }; set('f-name', 'אבי ישראלי'); set('f-phone', '050-1234567'); })()`);
   await evalJs(`window.__copied = null; window.Tools.copyText = function (t) { window.__copied = t; return Promise.resolve(true); }; window.__opened = null; window.open = function (u) { window.__opened = u; return null; };`);
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(150);
-  check('copy carries the share message with link', await evalJs(`window.__copied && window.__copied.indexOf('מיזם שידוכים וארשתיך המיועד לבחורים') === 0 && window.__copied.indexOf('כל הפרטים בקישור:') !== -1 && window.__copied.trim().endsWith(${JSON.stringify(link)})`));
-  check('whatsapp opens wa.me with the encoded text', await evalJs(`(() => { document.getElementById('b-whatsapp').click(); return window.__opened && window.__opened.indexOf('https://wa.me/?text=') === 0 && decodeURIComponent(window.__opened).indexOf('כל הפרטים בקישור:') !== -1 && decodeURIComponent(window.__opened).indexOf('https://docs.google.com/forms/d/e/') !== -1; })()`));
+  check('copy carries the share message with link', await evalJs(`window.__copied && window.__copied.indexOf('*מיזם השידוכים וְאֵרַשְׂתִּיךְ💍*') === 0 && window.__copied.indexOf('לחצו על הקישור:') !== -1 && window.__copied.trim().endsWith(${JSON.stringify(link)})`));
+  check('whatsapp opens wa.me with the encoded text', await evalJs(`(() => { document.getElementById('b-whatsapp').click(); return window.__opened && window.__opened.indexOf('https://wa.me/?text=') === 0 && decodeURIComponent(window.__opened).indexOf('לחצו על הקישור:') !== -1 && decodeURIComponent(window.__opened).indexOf('/sh/index.html?n=') !== -1 && decodeURIComponent(window.__opened).indexOf('entry.') === -1; })()`));
   check('system share hidden without Web Share API', await evalJs(`document.getElementById('b-share').hidden`));
   // with the Web Share API present the button shows and hands the message to it
   await send('Page.enable');
@@ -141,7 +153,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await evalJs(`(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }; set('f-name', 'אבי ישראלי'); set('f-phone', '050-1234567'); })()`);
   await evalJs(`document.getElementById('b-share').click()`);
   await sleepMs(150);
-  check('share dialog receives the message with link', await evalJs(`window.__shared && window.__shared.text.indexOf('מיזם שידוכים וארשתיך') === 0 && window.__shared.text.indexOf('כל הפרטים בקישור:') !== -1 && window.__shared.text.trim().endsWith(${JSON.stringify(link)})`));
+  check('share dialog receives the message with link', await evalJs(`window.__shared && window.__shared.text.indexOf('*מיזם השידוכים וְאֵרַשְׂתִּיךְ💍*') === 0 && window.__shared.text.indexOf('לחצו על הקישור:') !== -1 && window.__shared.text.trim().endsWith(${JSON.stringify(link)})`));
 
   console.log('STEP: navigating to export');
   // ===== page 2: export.html =====
@@ -158,6 +170,8 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('3 cards', await evalJs(`document.getElementById('counter').textContent`) === '1 / 3');
   const card1 = await evalJs(`document.getElementById('card').textContent`);
   check('card1 title', card1.startsWith('✨ ישראל ישראלי ✨'));
+  check('card1 fields bold-marked', await evalJs(`(() => { const c = document.getElementById('card'); return c.innerHTML.includes('<b>גיל</b>') && c.innerHTML.includes('<b>🎓 עיסוק:</b>') && !c.textContent.includes('*'); })()`));
+  check('copy text carries bold markers', await evalJs(`(() => { const t = Tools.buildCard({ name: 'א', age: '22', origin: 'עדה מזרחית' }); return t.includes('*גיל*: 22') && t.includes('*👳🏻 עדה, רקע משפחתי:*\\nעדה מזרחית') && t.includes('*🎯 מה אני מחפש*') === false; })()`));
   check('card1 fields aligned', card1.includes('🏡 מגורים:\nירושלים') && card1.includes('🎓 עיסוק:\nסטודנט להנדסה'));
   check('card1 split range', card1.includes('🎯 מה אני מחפש:\nבחורה רצינית') && card1.includes('טווח גילאים:\nבת 22-27'));
   check('status ok', (await evalJs(`document.getElementById('status').textContent`)).includes('3 כרטיסים נוצרו'));
@@ -211,9 +225,9 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
 
   // copy all -> full txt with 3 blank lines between cards
   const all = await evalJs(`Tools.joinCards(Tools.parseAll(Tools.SAMPLE_CSV).cards)`);
-  check('copy all text', typeof all === 'string' && all.includes('✨ משה כהן ✨') && all.split('✨').length >= 7);
+  check('copy all text', typeof all === 'string' && all.includes('*✨ משה כהן ✨*') && all.includes('*🎓 עיסוק:*') && all.split('✨').length >= 7);
   check('3 blank lines between cards', all.indexOf('050-4444444') !== -1 &&
-    all.indexOf('050-4444444\n\n\n✨') !== -1);
+    all.indexOf('050-4444444\n\n\n*✨') !== -1);
 
   // download button exists
   check('download button', await evalJs(`!!document.getElementById('b-download')`));
@@ -323,7 +337,14 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('group 3 ומטה = ב,א (count desc)', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 1, 3).join(',')`) === 'ב,א');
   check('group 4 ומעלה = ד,ג', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 4, '').join(',')`) === 'ד,ג');
   check('group objects carry the ref phone', await evalJs(`JSON.stringify(Tools.filterRefereeGroups(Tools.parseAll(${JSON.stringify(gc)}).cards, 1, 3))`) === '[{"name":"ב","phone":"050-2","count":3},{"name":"א","phone":"050-1","count":2}]');
-  check('share text template', await evalJs(`Tools.buildShareText('https://x.test/l')`) === 'מיזם שידוכים וארשתיך המיועד לבחורים במגזר הדתי לאומי תורני.\n\nכל הפרטים בקישור:\nhttps://x.test/l');
+  check('share text template', await evalJs(`Tools.buildShareText('https://x.test/l')`) === '*מיזם השידוכים וְאֵרַשְׂתִּיךְ💍*\n*מיועד לבחורים מהמגזר הדתי־לאומי תורני.*\n\n*להצטרפות למיזם לחצו על הקישור:*\nhttps://x.test/l');
+  check('share url short form (https)', await evalJs(`Tools.buildShareUrl('אבי ישראלי', '050-1234567', 'https://leeskies.github.io/datelink/index.html')`) === 'https://leeskies.github.io/datelink/sh?n=%D7%90%D7%91%D7%99%20%D7%99%D7%A9%D7%A8%D7%90%D7%9C%D7%99&n=050-1234567');
+  check('share url short form (dir root)', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'https://leeskies.github.io/datelink/')`) === 'https://leeskies.github.io/datelink/sh?n=%D7%90&n=0501234567');
+  check('share url short form (file:)', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'file:///a/tools/index.html')`) === 'file:///a/tools/sh/index.html?n=%D7%90&n=0501234567');
+  check('boys form link uses boys entries', await evalJs(`Tools.buildFormLink('א', '0501234567', 'boys')`) === 'https://docs.google.com/forms/d/e/1FAIpQLSdYrIxaJ9skefLmWb9z04qVt2K-UP4XiO1DdumDMbJ3PsguHQ/viewform?usp=pp_url&entry.885956976=%D7%90&entry.488453562=0501234567');
+  check('girls default keeps old entries', await evalJs(`Tools.buildFormLink('א', '0501234567')`) === 'https://docs.google.com/forms/d/e/1FAIpQLScFmbqLvxsIgdu0fqneZyuifsGFQ-wY00LB15CY4B4NRIHSbA/viewform?usp=pp_url&entry.1659420434=%D7%90&entry.632618070=0501234567');
+  check('boys share url goes to /sh/b', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'https://leeskies.github.io/datelink/', 'boys')`) === 'https://leeskies.github.io/datelink/sh/b?n=%D7%90&n=0501234567');
+  check('boys share url file: variant', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'file:///a/tools/b/index.html', 'boys')`) === 'file:///a/tools/sh/b/index.html?n=%D7%90&n=0501234567');
   // browser: default tab-3 shows its names automatically after paste
   await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(gc)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
   await sleepMs(300);
@@ -425,6 +446,25 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await send('Page.navigate', { url: BASE + 'roulette/index.html?fast=1' });
   await sleepMs(1000);
   check('no names -> empty state', await evalJs(`document.getElementById('spinBtn').disabled`));
+
+  console.log('STEP: boys route');
+  // /b is the same share page, feeding the boys form; its links go to /sh/b
+  await send('Page.navigate', { url: BASE + 'b/index.html' });
+  await sleepMs(1000);
+  check('boys page same UI', await evalJs(`!!document.getElementById('f-name') && !!document.getElementById('b-copy') && document.documentElement.dir === 'rtl'`));
+  check('boys page has styles', await evalJs(`getComputedStyle(document.getElementById('b-copy')).backgroundColor === 'rgb(37, 99, 168)' && getComputedStyle(document.body).fontFamily.indexOf('Rubik') !== -1`));
+  await evalJs(`(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }; set('f-name', 'אבי ישראלי'); set('f-phone', '050-1234567'); })()`);
+  await evalJs(`document.getElementById('b-copy').click()`);
+  await sleepMs(200);
+  check('boys page builds /sh/b link', await evalJs(`document.getElementById('f-link').value`) === BASE + 'sh/b/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=050-1234567');
+  // the boys redirect lands on the boys form with the referee entries
+  await send('Page.navigate', { url: BASE + 'sh/b/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=' + encodeURIComponent('050-1234567') });
+  await sleepMs(1500);
+  const boysTarget = await evalJs(`location.href`);
+  check('sh/b redirects to the boys form', boysTarget.indexOf('1FAIpQLSdYrIxaJ9skefLmWb9z04qVt2K-UP4XiO1DdumDMbJ3PsguHQ/viewform') !== -1 && boysTarget.indexOf('entry.885956976') !== -1 && boysTarget.indexOf('entry.488453562') !== -1, boysTarget.slice(0, 120));
+  await send('Page.navigate', { url: BASE + 'sh/b/index.html' });
+  await sleepMs(1000);
+  check('sh/b without details goes back to the generator', await evalJs(`location.href.includes('index.html') && !location.href.includes('docs.google.com')`));
 
   // ===== no page errors =====
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | ').slice(0, 200));
