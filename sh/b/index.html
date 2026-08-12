@@ -14,8 +14,10 @@
       var FORM = /\/b(?:\/|$)/.test(location.pathname) ? 'boys' : 'girls';
       var p = new URLSearchParams(location.search);
       var vals = p.getAll('n'); // first n = name, second n = number
-      var name = (vals[0] || '').trim();
-      var number = (vals[1] || '').trim();
+      // ~-marked values are the positional letter code; anything else is a
+      // legacy link (raw Hebrew / digits) and passes through untouched
+      var name = Tools.decodedParam((vals[0] || '').trim());
+      var number = Tools.decodedParam((vals[1] || '').trim());
       if (name.length >= 2 && number.replace(/\D/g, '').length >= 9) {
         location.replace(Tools.buildFormLink(name, number, FORM));
       } else {

@@ -378,6 +378,41 @@
     return { cards: cards, skipped: skipped, unknown: map.unknown, combined: map.combinedLooking !== -1 };
   }
 
+  /* ===== short-link code: positional Hebrew->ASCII map (lossless) =====
+     letters by alphabet position (alef=a ... tav=v), finals ם ן ץ ף ך ->
+     w x y z aa; digits 0-9 -> A-J so no numbers ever appear in links;
+     space -> '+'. Values are marked with '~'; unmarked = legacy (raw). */
+  var HEB_CHARS = 'אבגדהוזחטיכלמנסעפצקרשתםןצףך';
+  var HEB_CODES = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','aa'];
+  var DIGIT_CODES = 'ABCDEFGHIJ';
+  function encodeText(s) {
+    return String(s == null ? '' : s).split('').map(function (ch) {
+      var i = HEB_CHARS.indexOf(ch);
+      if (i >= 0) return HEB_CODES[i];
+      if (ch === ' ') return '+';
+      var d = ch.charCodeAt(0) - 48;
+      if (d >= 0 && d <= 9) return DIGIT_CODES[d];
+      return ch; // latin letters, punctuation — pass through
+    }).join('');
+  }
+  function decodeText(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (ch === '+') { out += ' '; continue; }
+      if (ch === 'a' && s[i + 1] === 'a') { out += 'ך'; i++; continue; } // two-letter code first
+      var hi = HEB_CODES.indexOf(ch);
+      if (hi >= 0) { out += HEB_CHARS[hi]; continue; }
+      var di = DIGIT_CODES.indexOf(ch);
+      if (di >= 0) { out += String(di); continue; }
+      out += ch;
+    }
+    return out;
+  }
+  function encodedName(name) { return '~' + encodeText(clean(name)); }
+  function encodedPhone(phone) { return '~' + encodeText(clean(phone).replace(/\D+/g, '')); }
+  function decodedParam(v) { return v.charAt(0) === '~' ? decodeText(v.slice(1)) : v; }
+
   /* ===== page 1: build the prefilled form link ===== */
   function buildFormLink(name, phone, form) {
     var f = formOf(form);
@@ -398,7 +433,7 @@
     dir = dir.replace(/\/(?:b|sh)\/$/, '/');
     var target = file ? dir + 'sh/index.html' : dir + 'sh';
     if (formOf(form) === FORMS.boys) target = file ? dir + 'sh/b/index.html' : dir + 'sh/b';
-    return target + '?n=' + encodeURIComponent(clean(name)) + '&n=' + encodeURIComponent(clean(phone));
+    return target + '?n=' + encodedName(name) + '&n=' + encodedPhone(phone);
   }
 
   /* ===== clipboard (browser only; node returns false) ===== */
@@ -460,6 +495,9 @@
     filterReferees: filterReferees,
     filterRefereeGroups: filterRefereeGroups,
     buildShareUrl: buildShareUrl,
+    encodeText: encodeText,
+    decodeText: decodeText,
+    decodedParam: decodedParam,
     buildShareText: buildShareText,
     normPhone: normPhone,
     copyText: copyText,

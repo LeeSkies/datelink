@@ -115,7 +115,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(200);
   const link = await evalJs(`document.getElementById('f-link').value`);
-  check('link prefilled as short /sh link', link.includes('/sh/index.html?n=') && link.includes('%D7%90%D7%91%D7%99') && link.includes('050-1234567') && link.indexOf('entry.') === -1 && link.indexOf('docs.google.com') === -1, link.slice(-80));
+  check('link prefilled as short /sh link', link.includes('/sh/index.html?n=~abj+jutalj&n=~AFABCDEFGH') && !/\d/.test(link) && link.indexOf('entry.') === -1 && link.indexOf('docs.google.com') === -1, link.slice(-80));
   check('copy toast', await evalJs(`document.getElementById('toast').hidden`) === false);
   check('linkout ltr after copy', await evalJs(`document.getElementById('f-link').getAttribute('dir')`) === 'ltr');
 
@@ -126,6 +126,11 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   // headless Google may bounce to a sign-in URL, but the prefilled form link
   // (with both entries) must be the destination either way
   check('sh redirects to the prefilled form', shTarget.indexOf('viewform') !== -1 && shTarget.indexOf('entry.1659420434') !== -1 && shTarget.indexOf('entry.632618070') !== -1 && shTarget.indexOf('050-1234567') !== -1, shTarget.slice(0, 120));
+  // encoded links (the new format): decode back to Hebrew before redirecting
+  await send('Page.navigate', { url: BASE + 'sh/index.html?n=~abj+tfx&n=~AFABCDEFGH' });
+  await sleepMs(1500);
+  const shEnc = await evalJs(`location.href`);
+  check('sh decodes the letter code into the form link', shEnc.indexOf('viewform') !== -1 && shEnc.indexOf('entry.1659420434') !== -1 && (shEnc.indexOf('%D7%90%D7%91%D7%99%20%D7%A8%D7%95%D7%9F') !== -1 || shEnc.indexOf('%25D7%2590%25D7%2591%25D7%2599') !== -1), shEnc.slice(0, 120));
   await send('Page.navigate', { url: BASE + 'sh/index.html' });
   await sleepMs(1000);
   check('sh without details goes back to the generator', await evalJs(`location.href.includes('index.html') && !location.href.includes('docs.google.com')`), await evalJs(`location.href`));
@@ -338,13 +343,18 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('group 4 ומעלה = ד,ג', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 4, '').join(',')`) === 'ד,ג');
   check('group objects carry the ref phone', await evalJs(`JSON.stringify(Tools.filterRefereeGroups(Tools.parseAll(${JSON.stringify(gc)}).cards, 1, 3))`) === '[{"name":"ב","phone":"050-2","count":3},{"name":"א","phone":"050-1","count":2}]');
   check('share text template', await evalJs(`Tools.buildShareText('https://x.test/l')`) === '*מיזם השידוכים וְאֵרַשְׂתִּיךְ💍*\n*מיועד לבחורים מהמגזר הדתי־לאומי תורני.*\n\n*להצטרפות למיזם לחצו על הקישור:*\nhttps://x.test/l');
-  check('share url short form (https)', await evalJs(`Tools.buildShareUrl('אבי ישראלי', '050-1234567', 'https://leeskies.github.io/datelink/index.html')`) === 'https://leeskies.github.io/datelink/sh?n=%D7%90%D7%91%D7%99%20%D7%99%D7%A9%D7%A8%D7%90%D7%9C%D7%99&n=050-1234567');
-  check('share url short form (dir root)', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'https://leeskies.github.io/datelink/')`) === 'https://leeskies.github.io/datelink/sh?n=%D7%90&n=0501234567');
-  check('share url short form (file:)', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'file:///a/tools/index.html')`) === 'file:///a/tools/sh/index.html?n=%D7%90&n=0501234567');
+  check('share url short form (https)', await evalJs(`Tools.buildShareUrl('אבי ישראלי', '050-1234567', 'https://leeskies.github.io/datelink/index.html')`) === 'https://leeskies.github.io/datelink/sh?n=~abj+jutalj&n=~AFABCDEFGH');
+  check('share url short form (dir root)', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'https://leeskies.github.io/datelink/')`) === 'https://leeskies.github.io/datelink/sh?n=~a&n=~AFABCDEFGH');
+  check('share url short form (file:)', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'file:///a/tools/index.html')`) === 'file:///a/tools/sh/index.html?n=~a&n=~AFABCDEFGH');
+  check('no digits in the share link', await evalJs(`!/\\d/.test(Tools.buildShareUrl('אבי רון', '050-1234567', 'https://leeskies.github.io/datelink/'))`));
+  check('codec round trip (letters+finals+digits)', await evalJs(`Tools.decodeText(Tools.encodeText('שמואל כהן םןצףך 123')) === 'שמואל כהן םןצףך 123'`));
+  check('codec specific codes', await evalJs(`Tools.encodeText('אבי רון') === 'abj+tfx' && Tools.decodeText('tfx') === 'רון' && Tools.decodeText('aa') === 'ך' && Tools.decodeText('ABC') === '012'`));
+  check('legacy params pass through', await evalJs(`Tools.decodedParam('אבי רון') === 'אבי רון' && Tools.decodedParam('050-1234567') === '050-1234567'`));
+  check('marked params decode', await evalJs(`Tools.decodedParam('~abj+tfx') === 'אבי רון' && Tools.decodedParam('~AFABCDEFGH') === '0501234567'`));
   check('boys form link uses boys entries', await evalJs(`Tools.buildFormLink('א', '0501234567', 'boys')`) === 'https://docs.google.com/forms/d/e/1FAIpQLSdYrIxaJ9skefLmWb9z04qVt2K-UP4XiO1DdumDMbJ3PsguHQ/viewform?usp=pp_url&entry.885956976=%D7%90&entry.488453562=0501234567');
   check('girls default keeps old entries', await evalJs(`Tools.buildFormLink('א', '0501234567')`) === 'https://docs.google.com/forms/d/e/1FAIpQLScFmbqLvxsIgdu0fqneZyuifsGFQ-wY00LB15CY4B4NRIHSbA/viewform?usp=pp_url&entry.1659420434=%D7%90&entry.632618070=0501234567');
-  check('boys share url goes to /sh/b', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'https://leeskies.github.io/datelink/', 'boys')`) === 'https://leeskies.github.io/datelink/sh/b?n=%D7%90&n=0501234567');
-  check('boys share url file: variant', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'file:///a/tools/b/index.html', 'boys')`) === 'file:///a/tools/sh/b/index.html?n=%D7%90&n=0501234567');
+  check('boys share url goes to /sh/b', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'https://leeskies.github.io/datelink/', 'boys')`) === 'https://leeskies.github.io/datelink/sh/b?n=~a&n=~AFABCDEFGH');
+  check('boys share url file: variant', await evalJs(`Tools.buildShareUrl('א', '0501234567', 'file:///a/tools/b/index.html', 'boys')`) === 'file:///a/tools/sh/b/index.html?n=~a&n=~AFABCDEFGH');
   // browser: default tab-3 shows its names automatically after paste
   await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(gc)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
   await sleepMs(300);
@@ -456,7 +466,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await evalJs(`(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }; set('f-name', 'אבי ישראלי'); set('f-phone', '050-1234567'); })()`);
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(200);
-  check('boys page builds /sh/b link', await evalJs(`document.getElementById('f-link').value`) === BASE + 'sh/b/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=050-1234567');
+  check('boys page builds /sh/b link', await evalJs(`document.getElementById('f-link').value`) === BASE + 'sh/b/index.html?n=~abj+jutalj&n=~AFABCDEFGH');
   // the boys redirect lands on the boys form with the referee entries
   await send('Page.navigate', { url: BASE + 'sh/b/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=' + encodeURIComponent('050-1234567') });
   await sleepMs(1500);
