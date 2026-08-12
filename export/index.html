@@ -276,7 +276,7 @@
       function showGroup(min, max, label, tabId) {
         refreshTabs(tabId);
         var groups = T.filterRefereeGroups(cards, min, max);
-        pendingGroup = groups.length ? { names: groups.map(function (g) { return g.name; }), label: label } : null;
+        pendingGroup = groups.length ? { names: groups.map(function (g) { return { name: g.name, phone: g.phone }; }), label: label } : null;
         groupList.textContent = groups.map(function (g) { return g.name + ' (' + g.count + ')'; }).join(', ');
         groupList.hidden = !groups.length;
         groupHead.hidden = groups.length; // 'אין מגישים בקבוצה' only when empty

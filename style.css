@@ -81,6 +81,20 @@ label.field input:focus { outline: 2px solid rgba(37, 99, 168, 0.35); border-col
 .hint.show { display: block; }
 
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+.btn.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 12px;
+  flex-shrink: 0;
+  /* no fixed height either — the flex row stretches it to match the copy
+     button, and aspect-ratio keeps it a perfect square next to it */
+}
+.btn.icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.btn.icon-btn[hidden] { display: none; } /* the hidden attr loses to the class display rule otherwise */
 /* placeholders render RTL even on LTR fields (phone, CSV paste, link out).
    Chrome ignores direction on ::placeholder — the dir attribute is toggled in JS. */
 input::placeholder, textarea::placeholder { direction: rtl; text-align: right; }

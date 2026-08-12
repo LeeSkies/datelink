@@ -293,7 +293,13 @@
       .sort(function (a, b) {
         return b.count - a.count || String(a.name).localeCompare(String(b.name), 'he');
       })
-      .map(function (r) { return { name: r.name, count: r.count }; });
+      .map(function (r) { return { name: r.name, phone: r.phone, count: r.count }; });
+  }
+
+  /* the message copied/shared from the landing page (kept in one place so the
+     copy, system-share and WhatsApp paths stay identical) */
+  function buildShareText(url) {
+    return 'מיזם שידוכים וארשתיך המיועד לבחורים במגזר הדתי לאומי תורני.\n\nכל הפרטים בקישור:\n' + url;
   }
 
   /* names only (the roulette needs just the names) */
@@ -421,6 +427,7 @@
     refereeStats: refereeStats,
     filterReferees: filterReferees,
     filterRefereeGroups: filterRefereeGroups,
+    buildShareText: buildShareText,
     normPhone: normPhone,
     copyText: copyText,
     showToast: showToast,

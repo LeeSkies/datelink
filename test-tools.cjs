@@ -120,6 +120,29 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('copy toast', await evalJs(`document.getElementById('toast').hidden`) === false);
   check('linkout ltr after copy', await evalJs(`document.getElementById('f-link').getAttribute('dir')`) === 'ltr');
 
+  // share handlers: copy carries the full message; whatsapp opens wa.me with it;
+  // system share falls back to copying on desktop (no Web Share API)
+  check('share + whatsapp buttons present', await evalJs(`!!document.getElementById('b-share') && !!document.getElementById('b-whatsapp')`));
+  check('icons render at full size', await evalJs(`(() => { const ss = [...document.querySelectorAll('.btn.icon-btn svg')].map(s => getComputedStyle(s)); return ss.length === 2 && ss.every(s => s.width === '20px' && s.height === '20px' && s.fill === 'rgb(255, 255, 255)'); })()`));
+  check('icon buttons match the copy button height', await evalJs(`(() => { const h = document.getElementById('b-copy').getBoundingClientRect().height; return [...document.querySelectorAll('.btn.icon-btn')].filter(b => !b.hidden).every(b => Math.abs(b.getBoundingClientRect().height - h) < 1); })()`));
+  check('icon buttons stay square (width = height)', await evalJs(`(() => { const r = [...document.querySelectorAll('.btn.icon-btn')].filter(b => !b.hidden).map(b => b.getBoundingClientRect()); return r.length > 0 && r.every(x => Math.abs(x.width - x.height) < 1); })()`));
+  await evalJs(`window.__copied = null; window.Tools.copyText = function (t) { window.__copied = t; return Promise.resolve(true); }; window.__opened = null; window.open = function (u) { window.__opened = u; return null; };`);
+  await evalJs(`document.getElementById('b-copy').click()`);
+  await sleepMs(150);
+  check('copy carries the share message with link', await evalJs(`window.__copied && window.__copied.indexOf('מיזם שידוכים וארשתיך המיועד לבחורים') === 0 && window.__copied.indexOf('כל הפרטים בקישור:') !== -1 && window.__copied.trim().endsWith(${JSON.stringify(link)})`));
+  check('whatsapp opens wa.me with the encoded text', await evalJs(`(() => { document.getElementById('b-whatsapp').click(); return window.__opened && window.__opened.indexOf('https://wa.me/?text=') === 0 && decodeURIComponent(window.__opened).indexOf('כל הפרטים בקישור:') !== -1 && decodeURIComponent(window.__opened).indexOf('https://docs.google.com/forms/d/e/') !== -1; })()`));
+  check('system share hidden without Web Share API', await evalJs(`document.getElementById('b-share').hidden`));
+  // with the Web Share API present the button shows and hands the message to it
+  await send('Page.enable');
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__injRan = true; try { Object.defineProperty(navigator, 'share', { value: function (d) { window.__shared = d; return Promise.resolve(); }, configurable: true }); } catch (e) { window.__injErr = String(e); }` });
+  await send('Page.navigate', { url: BASE + 'index.html' });
+  await sleepMs(800);
+  check('share button visible with Web Share API', await evalJs(`!document.getElementById('b-share').hidden`));
+  await evalJs(`(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }; set('f-name', 'אבי ישראלי'); set('f-phone', '050-1234567'); })()`);
+  await evalJs(`document.getElementById('b-share').click()`);
+  await sleepMs(150);
+  check('share dialog receives the message with link', await evalJs(`window.__shared && window.__shared.text.indexOf('מיזם שידוכים וארשתיך') === 0 && window.__shared.text.indexOf('כל הפרטים בקישור:') !== -1 && window.__shared.text.trim().endsWith(${JSON.stringify(link)})`));
+
   console.log('STEP: navigating to export');
   // ===== page 2: export.html =====
   await send('Page.navigate', { url: BASE + 'export/index.html' });
@@ -299,6 +322,8 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   const gc = groupCsv();
   check('group 3 ומטה = ב,א (count desc)', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 1, 3).join(',')`) === 'ב,א');
   check('group 4 ומעלה = ד,ג', await evalJs(`Tools.filterReferees(Tools.parseAll(${JSON.stringify(gc)}).cards, 4, '').join(',')`) === 'ד,ג');
+  check('group objects carry the ref phone', await evalJs(`JSON.stringify(Tools.filterRefereeGroups(Tools.parseAll(${JSON.stringify(gc)}).cards, 1, 3))`) === '[{"name":"ב","phone":"050-2","count":3},{"name":"א","phone":"050-1","count":2}]');
+  check('share text template', await evalJs(`Tools.buildShareText('https://x.test/l')`) === 'מיזם שידוכים וארשתיך המיועד לבחורים במגזר הדתי לאומי תורני.\n\nכל הפרטים בקישור:\nhttps://x.test/l');
   // browser: default tab-3 shows its names automatically after paste
   await evalJs(`document.getElementById('f-paste').value = ${JSON.stringify(gc)}; document.getElementById('f-paste').dispatchEvent(new Event('input'));`);
   await sleepMs(300);
@@ -318,6 +343,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('overlay opened over the ui', await evalJs(`!document.getElementById('roulette-overlay').hidden`));
   check('iframe src has no names', await evalJs(`(() => { const u = new URL(document.getElementById('roulette-frame').src); return u.searchParams.get('names') === null && u.searchParams.get('embed') === '1'; })()`));
   check('names arrived in the wheel (postMessage)', await evalJs(`(() => { const d = document.getElementById('roulette-frame').contentDocument; return d && d.getElementById('spinBtn') && !d.getElementById('spinBtn').disabled; })()`));
+  check('wheel payload keeps ref phones (localStorage courtesy)', await evalJs(`(() => { try { const v = JSON.parse(localStorage.getItem('datelink-roulette-names')); return Array.isArray(v) && v.length === 2 && v.every(x => typeof x.name === 'string' && typeof x.phone === 'string' && x.phone.length > 0); } catch (e) { return false; } })()`));
   check('side names list hidden inside frame', await evalJs(`(() => { const d = document.getElementById('roulette-frame').contentDocument; const s = d.getElementById('sideNames'); return s && s.hidden; })()`));
   check('galgal canvas wheel inside frame', await evalJs(`!!document.getElementById('roulette-frame').contentDocument.getElementById('wheel')`));
   check('orbit rings inside frame', await evalJs(`document.getElementById('roulette-frame').contentDocument.querySelectorAll('.orbit-ring').length`) === 3);
@@ -353,8 +379,9 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('empty group hides list + disables go', await evalJs(`document.getElementById('group-list').hidden && document.getElementById('b-to-roulette').disabled`));
   check('empty group stays on export', await evalJs(`location.pathname.includes('export')`));
   // roulette (galgal wheel): fast spin picks a winner -> modal + confetti
-  // names arrive via localStorage (same channel as the export page) — no names in the URL
-  await evalJs(`localStorage.setItem('datelink-roulette-names', JSON.stringify(['ב', 'א']))`);
+  // entries can arrive as {name, phone} objects (the export page) — the phone
+  // is shown under the winner's name in the modal
+  await evalJs(`localStorage.setItem('datelink-roulette-names', JSON.stringify([{ name: 'ב', phone: '0501112222' }, { name: 'א', phone: '0523334444' }]))`);
   await send('Page.navigate', { url: `${BASE}roulette/index.html?fast=1` });
   await sleepMs(1200);
   check('ambient drift present', await evalJs(`document.querySelectorAll('.drift').length`) > 0);
@@ -365,9 +392,19 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('side list faded while rolling', await evalJs(`document.body.classList.contains('rolling')`));
   await sleepMs(2500);
   check('side list back after halting', await evalJs(`!document.body.classList.contains('rolling')`));
-  const winner = await evalJs(`document.getElementById('winnerName').textContent`);
-  check('winner is one of the names', ['א', 'ב'].includes(winner), winner);
+  const winner = await evalJs(`JSON.stringify({ name: document.getElementById('winnerName').textContent, phone: document.getElementById('winnerPhoneNum').textContent, phoneHidden: document.getElementById('winnerPhone').hidden })`).then(JSON.parse);
+  check('winner is one of the names', ['א', 'ב'].includes(winner.name), winner.name);
   check('modal shown', await evalJs(`document.getElementById('modalOverlay').classList.contains('show')`));
+  check('winner phone shown under the name', !winner.phoneHidden && winner.phone === (winner.name === 'ב' ? '0501112222' : '0523334444'), winner.phone);
+  // clicking the phone copies it — plain row with a small copy icon, feedback
+  // via icon->checkmark swap (not a button)
+  check('copy icon next to the phone', await evalJs(`(() => { const p = document.getElementById('winnerPhone'); return !p.hidden && !!p.querySelector('.ico-copy') && p.querySelector('#winnerPhoneNum') !== null && getComputedStyle(p).cursor === 'pointer'; })()`));
+  await evalJs(`(() => { try { Object.defineProperty(navigator, 'clipboard', { value: { writeText: function (t) { window.__copiedPhone = t; return Promise.resolve(); } }, configurable: true }); } catch (e) {} document.getElementById('winnerPhone').click(); })()`);
+  check('click copies the phone', await evalJs(`window.__copiedPhone`) === winner.phone, 'copied=' + await evalJs(`window.__copiedPhone`));
+  check('copy feedback class added', await evalJs(`document.getElementById('winnerPhone').classList.contains('copied')`));
+  check('modal stays open after copy', await evalJs(`document.getElementById('modalOverlay').classList.contains('show')`));
+  await sleepMs(1400);
+  check('feedback reverts after 1.2s', await evalJs(`!document.getElementById('winnerPhone').classList.contains('copied')`));
   check('confetti burst', await evalJs(`document.querySelectorAll('.confetti-piece').length`) > 0);
   check('spin button back', await evalJs(`!document.getElementById('spinBtn').classList.contains('is-hidden')`));
   // close modal, spin again (winners stay on the wheel)
