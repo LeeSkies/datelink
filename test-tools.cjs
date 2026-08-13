@@ -178,7 +178,8 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('card1 fields bold-marked', await evalJs(`(() => { const c = document.getElementById('card'); return c.innerHTML.includes('<b>גיל</b>') && c.innerHTML.includes('<b>🎓 עיסוק:</b>') && !c.textContent.includes('*'); })()`));
   check('copy text carries bold markers', await evalJs(`(() => { const t = Tools.buildCard({ name: 'א', age: '22', origin: 'עדה מזרחית' }); return t.includes('*גיל*: 22') && t.includes('*👳🏻 עדה, רקע משפחתי:*\\nעדה מזרחית') && t.includes('*🎯 מה אני מחפש*') === false; })()`));
   check('card1 fields aligned', card1.includes('🏡 מגורים:\nירושלים') && card1.includes('🎓 עיסוק:\nסטודנט להנדסה'));
-  check('card1 split range', card1.includes('🎯 מה אני מחפש:\nבחורה רצינית') && card1.includes('טווח גילאים:\nבת 22-27'));
+  check('card1 combined looking block', card1.includes('🎯 מה אני מחפש + טווח גילאים:\nבחורה רצינית בת 22-27') && card1.includes('*🎯 מה אני מחפש:*') === false);
+  check('card1 personal phone block', card1.includes('מספר טלפון אישי(המספר לא יפורסם באתר):\n050-2222222'));
   check('status ok', (await evalJs(`document.getElementById('status').textContent`)).includes('3 כרטיסים נוצרו'));
   check('paste ltr after load', await evalJs(`document.getElementById('f-paste').getAttribute('dir')`) === 'ltr');
   check('panel visible', await evalJs(`!document.getElementById('carousel-panel').hidden`));
@@ -209,8 +210,9 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await sleepMs(150);
   check('next button', await evalJs(`document.getElementById('counter').textContent`) === '2 / 3');
   const card2 = await evalJs(`document.getElementById('card').textContent`);
-  check('card2 multiline+split', card2.includes('🧍‍♂️ קצת עלי:\nמחפש בחורה טובה\nעם מידות טובות') &&
-    card2.includes('טווח גילאים:\n24-28'));
+  check('card2 multiline+combined', card2.includes('🧍‍♂️ קצת עלי:\nמחפש בחורה טובה\nעם מידות טובות') &&
+    card2.includes('🎯 מה אני מחפש + טווח גילאים:\nמחפש בחורה רצינית\nטווח גילאים: 24-28') &&
+    card2.includes('מספר טלפון אישי(המספר לא יפורסם באתר):\n050-5555555'));
   await evalJs(`document.getElementById('b-next').click()`);
   await sleepMs(150);
   check('prev enabled at 3/3', await evalJs(`!document.getElementById('b-prev').disabled`));
@@ -231,8 +233,8 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   // copy all -> full txt with 3 blank lines between cards
   const all = await evalJs(`Tools.joinCards(Tools.parseAll(Tools.SAMPLE_CSV).cards)`);
   check('copy all text', typeof all === 'string' && all.includes('*✨ משה כהן ✨*') && all.includes('*🎓 עיסוק:*') && all.split('✨').length >= 7);
-  check('3 blank lines between cards', all.indexOf('050-4444444') !== -1 &&
-    all.indexOf('050-4444444\n\n\n*✨') !== -1);
+  check('3 blank lines between cards', all.indexOf('050-5555555') !== -1 &&
+    all.indexOf('050-5555555\n\n\n*✨') !== -1);
 
   // download button exists
   check('download button', await evalJs(`!!document.getElementById('b-download')`));

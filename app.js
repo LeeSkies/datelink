@@ -228,9 +228,9 @@
     ['location', '🏡 מגורים:'],
     ['occupation', '🎓 עיסוק:'],
     ['about', '🧍‍♂️ קצת עלי:'],
-    ['looking', '🎯 מה אני מחפש:'],
-    ['agerange', 'טווח גילאים:'],
-    ['phone', '☎️ מספר טלפון לברורים ויצירת קשר:']
+    ['looking', '🎯 מה אני מחפש + טווח גילאים:'],
+    ['phone', '☎️ מספר טלפון לברורים ויצירת קשר:'],
+    ['personal', 'מספר טלפון אישי(המספר לא יפורסם באתר):']
   ];
 
   /* build one card's txt from a record {name, age, ...}; null when no name.
@@ -246,6 +246,9 @@
     if (inline.length) sections.push(inline.join('\n'));
     BLOCK_FIELDS.forEach(function (f) {
       var v = clean(rec[f[0]]);
+      // the form has one combined "מה אני מחפש+ טווח גילאים" column; a
+      // separate agerange column (old sheets) is appended to the same block
+      if (f[0] === 'looking' && v && clean(rec.agerange)) v += '\n' + clean(rec.agerange);
       if (v) sections.push('*' + f[1] + '*\n' + v);
     });
     return '*✨ ' + name + ' ✨*\n\n' + sections.join('\n\n');
@@ -352,11 +355,8 @@
         var idx = map.colByField[k];
         if (idx < row.length) rec[k] = clean(row[idx]);
       });
-      if (map.combinedLooking !== -1 && !rec.agerange && !(map.colByField.agerange >= 0)) {
-        var split = splitLooking(rec.looking);
-        rec.looking = split.looking;
-        rec.agerange = split.agerange;
-      }
+      // the combined "מה אני מחפש+ טווח גילאים" answer stays whole — the card
+      // shows it as one block (legacy separate agerange columns still work)
       var card = buildCard(rec);
       if (card) {
         var images = [];
