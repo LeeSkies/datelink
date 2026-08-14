@@ -93,13 +93,13 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   check('no inter-links', await evalJs(`document.querySelectorAll('nav.pages').length === 0 && !document.body.textContent.includes('המרת CSV')`));
   check('phone field rtl', await evalJs(`getComputedStyle(document.getElementById('f-phone')).direction`) === 'rtl');
   check('phone value stays ltr (plaintext)', await evalJs(`getComputedStyle(document.getElementById('f-phone')).unicodeBidi`) === 'plaintext');
-  check('linkout rtl when empty', await evalJs(`document.getElementById('f-link').getAttribute('dir')`) === 'rtl');
+  check('no linkout box', await evalJs(`!document.getElementById('f-link')`));
 
   // invalid input -> hints
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(150);
   check('empty -> name hint', await evalJs(`document.getElementById('hint-name').classList.contains('show')`));
-  check('empty -> no link', await evalJs(`document.getElementById('f-link').value`) === '');
+  check('share note shown', await evalJs(`document.querySelector('.share-note') && document.querySelector('.share-note').textContent.includes('ישיבות הסדר')`));
 
   console.log('STEP: link test');
   // valid input -> link + copy
@@ -114,10 +114,9 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   `);
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(200);
-  const link = await evalJs(`document.getElementById('f-link').value`);
+  const link = await evalJs(`Tools.buildShareUrl('אבי ישראלי', '050-1234567')`);
   check('link prefilled as short /sh link', link.includes('/sh/index.html?n=~abj+jutalj&n=~AFABCDEFGH') && !/\d/.test(link) && link.indexOf('entry.') === -1 && link.indexOf('docs.google.com') === -1, link.slice(-80));
   check('copy toast', await evalJs(`document.getElementById('toast').hidden`) === false);
-  check('linkout ltr after copy', await evalJs(`document.getElementById('f-link').getAttribute('dir')`) === 'ltr');
 
   // /sh redirect: valid details -> the prefilled form; missing -> back to the generator
   await send('Page.navigate', { url: BASE + 'sh/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=' + encodeURIComponent('050-1234567') });
@@ -468,7 +467,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   await evalJs(`(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }; set('f-name', 'אבי ישראלי'); set('f-phone', '050-1234567'); })()`);
   await evalJs(`document.getElementById('b-copy').click()`);
   await sleepMs(200);
-  check('boys page builds /sh/b link', await evalJs(`document.getElementById('f-link').value`) === BASE + 'sh/b/index.html?n=~abj+jutalj&n=~AFABCDEFGH');
+  check('boys page builds /sh/b link', await evalJs(`Tools.buildShareUrl('אבי ישראלי', '050-1234567', undefined, 'boys')`) === BASE + 'sh/b/index.html?n=~abj+jutalj&n=~AFABCDEFGH');
   // the boys redirect lands on the boys form with the referee entries
   await send('Page.navigate', { url: BASE + 'sh/b/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=' + encodeURIComponent('050-1234567') });
   await sleepMs(1500);

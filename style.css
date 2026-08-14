@@ -119,16 +119,12 @@ input[dir='rtl'] { unicode-bidi: plaintext; }
 .btn.ghost:hover { background: #d9ecfa; }
 .btn.small { padding: 8px 16px; font-size: 14px; }
 
-.linkout {
-  width: 100%;
-  margin-top: 18px;
-  padding: 12px 14px;
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  background: #fbfdff;
-  font: inherit;
-  font-size: 13px;
+.share-note {
+  margin-top: 22px;
+  font-size: 19.5px;
+  line-height: 1.6;
   color: var(--muted);
+  text-align: center;
 }
 
 /* toast */
