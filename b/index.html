@@ -50,6 +50,7 @@
       var T = window.Tools;
       var nameEl = document.getElementById('f-name');
       var phoneEl = document.getElementById('f-phone');
+      var noteEl = document.querySelector('.share-note');
 
       /* which form this share page feeds: /b → boys form, anywhere else → girls.
      Both routes serve this same page (see b/). */
@@ -72,6 +73,7 @@
 
       document.getElementById('b-copy').addEventListener('click', function () {
         if (!validate()) return;
+        noteEl.classList.add('show');
         T.copyText(T.buildShareText(shortLink())).then(function (ok) {
           if (ok) T.showToast('✓ הטקסט הועתק!');
           else T.showToast('לא הצלחנו להעתיק אוטומטית — נסה שוב', true);

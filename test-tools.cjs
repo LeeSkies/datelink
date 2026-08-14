@@ -117,6 +117,7 @@ setTimeout(() => { console.error('TIMEOUT after 90s'); process.exit(1); }, 90000
   const link = await evalJs(`Tools.buildShareUrl('אבי ישראלי', '050-1234567')`);
   check('link prefilled as short /sh link', link.includes('/sh/index.html?n=~abj+jutalj&n=~AFABCDEFGH') && !/\d/.test(link) && link.indexOf('entry.') === -1 && link.indexOf('docs.google.com') === -1, link.slice(-80));
   check('copy toast', await evalJs(`document.getElementById('toast').hidden`) === false);
+  check('note appears after copy', await evalJs(`document.querySelector('.share-note').classList.contains('show')`));
 
   // /sh redirect: valid details -> the prefilled form; missing -> back to the generator
   await send('Page.navigate', { url: BASE + 'sh/index.html?n=' + encodeURIComponent('אבי ישראלי') + '&n=' + encodeURIComponent('050-1234567') });

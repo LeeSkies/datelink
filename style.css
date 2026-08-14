@@ -125,6 +125,13 @@ input[dir='rtl'] { unicode-bidi: plaintext; }
   line-height: 1.6;
   color: var(--muted);
   text-align: center;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.share-note.show {
+  opacity: 1;
+  transform: none;
 }
 
 /* toast */
